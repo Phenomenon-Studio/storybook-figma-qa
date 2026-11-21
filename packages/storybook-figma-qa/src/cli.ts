@@ -27,18 +27,25 @@ function isCommand(name: string): name is Command {
 }
 
 async function main(argv: string[]): Promise<number> {
-    const [name = 'report'] = argv;
-
-    if (name === '--help' || name === '-h') {
+    if (argv[0] === '--help' || argv[0] === '-h') {
         console.log(USAGE);
 
         return 0;
     }
 
+    // Bare options (`figma-qa --json`) belong to the default command.
+    const [name = 'report', ...rest] = argv[0]?.startsWith('-') ? ['report', ...argv] : argv;
+
     if (!isCommand(name)) {
         console.error(`figma-qa: unknown command "${name}"\n\n${USAGE}`);
 
         return 2;
+    }
+
+    if (name === 'report') {
+        const { report } = await import('./commands/report.ts');
+
+        return report(rest);
     }
 
     if (name === 'doctor') {

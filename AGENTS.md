@@ -25,7 +25,7 @@ Every change must hold on `fixtures/sb10` (Storybook 10.6, Vitest 4) **and** `fi
 
 ## Package contract
 
-- ESM only. Peers `storybook ^10.6.0 || ^11.0.0-0`, `vitest ^4 || ^5`, `react`; engines Node ≥ 22.12, Vite ≥ 6.3. Widening or narrowing a range is a semver decision.
+- ESM only. Peers `storybook ^10.6.0 || ^11.0.0-0`, `vitest ^4 || ^5`, `react`, plus `@storybook/addon-vitest` and `@vitest/browser-playwright` (the `./vitest` project composes them); engines Node ≥ 22.12, Vite ≥ 6.3. Widening or narrowing a range is a semver decision.
 - CLI exit codes: 0 ok, 1 design failure, 2 harness or setup error. Only `init` prompts. Commands load lazily so heavy deps cost only the command that uses them.
 - Any `figma-qa.config.ts` or committed refs format change is a **major** and ships a `figma-qa migrate` step.
 - `skills/` holds thin skills: they call CLI commands and keep only judgment.

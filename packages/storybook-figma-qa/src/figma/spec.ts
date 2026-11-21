@@ -15,7 +15,7 @@ const PX = 1;
  * Extra CSS px per character of text laid out before a measured edge. Linux Chromium (the pinned Docker browser)
  * rounds every glyph advance to a whole pixel while Figma keeps fractions, so a label drifts up to ~0.2px per glyph
  * ("Stop Recondition": 124px vs Figma's 121px) and moves everything after it. No Chromium flag or fontconfig setting
- * changes this (visual/FIGMA-TESTING.md → Tolerances).
+ * changes this.
  */
 const TEXT_ADVANCE = 0.25;
 /** Cap on the summed allowance: "Stop Recondition" (16 glyphs) drifts 3px; past ~4px the drift is a real error. */
@@ -998,7 +998,7 @@ export function pathFrom(root: Element, element: Element): string {
 // through every helper would rewrite the ported logic.
 let VARIABLES: Record<string, FigmaVariable> = {};
 
-export function useVariables(variables: Record<string, FigmaVariable>): void {
+export function setVariables(variables: Record<string, FigmaVariable>): void {
     VARIABLES = variables;
 }
 
@@ -1011,7 +1011,7 @@ function boundColor(color: Rgba, id: string): { note: string; token: string | nu
     const variable = VARIABLES[id];
     if (!variable) {
         return {
-            note: `var ${id} (unnamed: name it via `figma-qa variables`) · ${nearestToken(color, CHANNEL)}`,
+            note: `var ${id} (unnamed: name it via figma-qa variables) · ${nearestToken(color, CHANNEL)}`,
             token: null,
         };
     }
@@ -1453,7 +1453,7 @@ export function figmaSpecMismatches(root: Element, spec: FigmaSpec): FigmaIssue[
                     expected: { text: expectedFile, note: icon.component ?? undefined },
                     actual: {
                         text: drawnFile ?? 'not a kit icon',
-                        note: drawnFile ? undefined : 'svg geometry matches no file in src/assets/icons',
+                        note: drawnFile ? undefined : 'svg geometry matches no project icon',
                     },
                     tolerance: 'exact',
                 });

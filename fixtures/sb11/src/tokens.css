@@ -1,0 +1,9 @@
+:root {
+    --color-brand: #3b5bdb;
+    /* Darker than Figma's neutral (#adb5bd): 3:1 non-text contrast on white. The fixture's deliberate deviation. */
+    --color-neutral: #868e96;
+}
+
+html {
+    background: #ffffff;
+}

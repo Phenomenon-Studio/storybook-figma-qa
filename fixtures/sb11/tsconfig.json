@@ -11,11 +11,13 @@
         "noEmit": true,
         "noUnusedLocals": true,
         "noUnusedParameters": true,
-        "erasableSyntaxOnly": true
+        "erasableSyntaxOnly": true,
+        "types": ["vite/client"]
     },
     "include": [
         "src",
         ".storybook",
-        "vite.config.ts"
+        "vite.config.ts",
+        "vitest.config.ts"
     ]
 }

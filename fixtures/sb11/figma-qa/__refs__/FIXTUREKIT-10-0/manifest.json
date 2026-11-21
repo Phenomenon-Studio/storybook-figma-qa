@@ -1,0 +1,270 @@
+{
+    "source": {
+        "url": "https://www.figma.com/design/FIXTUREKIT/Fixture-UI-kit?node-id=10-0",
+        "fileKey": "FIXTUREKIT",
+        "nodeId": "10:0",
+        "name": "Swatch",
+        "version": "1",
+        "lastModified": "2026-11-21T00:00:00Z"
+    },
+    "axes": [
+        {
+            "name": "Size",
+            "options": [
+                "Small",
+                "Large"
+            ]
+        },
+        {
+            "name": "Tone",
+            "options": [
+                "Brand",
+                "Neutral",
+                "Danger"
+            ]
+        }
+    ],
+    "booleans": [],
+    "variants": [
+        {
+            "id": "10:1",
+            "name": "Size=Small, Tone=Brand",
+            "props": {
+                "Size": "Small",
+                "Tone": "Brand"
+            },
+            "spec": {
+                "root": {
+                    "name": "Size=Small, Tone=Brand",
+                    "width": 24,
+                    "height": 24,
+                    "radius": [
+                        4,
+                        4,
+                        4,
+                        4
+                    ],
+                    "hugWidth": false,
+                    "fill": {
+                        "r": 59,
+                        "g": 91,
+                        "b": 219,
+                        "a": 1
+                    },
+                    "fillTypes": [],
+                    "opacity": 1,
+                    "stroke": null,
+                    "shadows": [],
+                    "blendMode": null,
+                    "blur": {
+                        "layer": null,
+                        "background": null
+                    },
+                    "layout": null
+                },
+                "texts": [],
+                "icons": []
+            }
+        },
+        {
+            "id": "10:2",
+            "name": "Size=Small, Tone=Neutral",
+            "props": {
+                "Size": "Small",
+                "Tone": "Neutral"
+            },
+            "spec": {
+                "root": {
+                    "name": "Size=Small, Tone=Neutral",
+                    "width": 24,
+                    "height": 24,
+                    "radius": [
+                        4,
+                        4,
+                        4,
+                        4
+                    ],
+                    "hugWidth": false,
+                    "fill": {
+                        "r": 173,
+                        "g": 181,
+                        "b": 189,
+                        "a": 1
+                    },
+                    "fillTypes": [],
+                    "opacity": 1,
+                    "stroke": null,
+                    "shadows": [],
+                    "blendMode": null,
+                    "blur": {
+                        "layer": null,
+                        "background": null
+                    },
+                    "layout": null
+                },
+                "texts": [],
+                "icons": []
+            }
+        },
+        {
+            "id": "10:3",
+            "name": "Size=Small, Tone=Danger",
+            "props": {
+                "Size": "Small",
+                "Tone": "Danger"
+            },
+            "spec": {
+                "root": {
+                    "name": "Size=Small, Tone=Danger",
+                    "width": 24,
+                    "height": 24,
+                    "radius": [
+                        4,
+                        4,
+                        4,
+                        4
+                    ],
+                    "hugWidth": false,
+                    "fill": {
+                        "r": 224,
+                        "g": 49,
+                        "b": 49,
+                        "a": 1
+                    },
+                    "fillTypes": [],
+                    "opacity": 1,
+                    "stroke": null,
+                    "shadows": [],
+                    "blendMode": null,
+                    "blur": {
+                        "layer": null,
+                        "background": null
+                    },
+                    "layout": null
+                },
+                "texts": [],
+                "icons": []
+            }
+        },
+        {
+            "id": "10:4",
+            "name": "Size=Large, Tone=Brand",
+            "props": {
+                "Size": "Large",
+                "Tone": "Brand"
+            },
+            "spec": {
+                "root": {
+                    "name": "Size=Large, Tone=Brand",
+                    "width": 40,
+                    "height": 40,
+                    "radius": [
+                        8,
+                        8,
+                        8,
+                        8
+                    ],
+                    "hugWidth": false,
+                    "fill": {
+                        "r": 59,
+                        "g": 91,
+                        "b": 219,
+                        "a": 1
+                    },
+                    "fillTypes": [],
+                    "opacity": 1,
+                    "stroke": null,
+                    "shadows": [],
+                    "blendMode": null,
+                    "blur": {
+                        "layer": null,
+                        "background": null
+                    },
+                    "layout": null
+                },
+                "texts": [],
+                "icons": []
+            }
+        },
+        {
+            "id": "10:5",
+            "name": "Size=Large, Tone=Neutral",
+            "props": {
+                "Size": "Large",
+                "Tone": "Neutral"
+            },
+            "spec": {
+                "root": {
+                    "name": "Size=Large, Tone=Neutral",
+                    "width": 40,
+                    "height": 40,
+                    "radius": [
+                        8,
+                        8,
+                        8,
+                        8
+                    ],
+                    "hugWidth": false,
+                    "fill": {
+                        "r": 173,
+                        "g": 181,
+                        "b": 189,
+                        "a": 1
+                    },
+                    "fillTypes": [],
+                    "opacity": 1,
+                    "stroke": null,
+                    "shadows": [],
+                    "blendMode": null,
+                    "blur": {
+                        "layer": null,
+                        "background": null
+                    },
+                    "layout": null
+                },
+                "texts": [],
+                "icons": []
+            }
+        },
+        {
+            "id": "10:6",
+            "name": "Size=Large, Tone=Danger",
+            "props": {
+                "Size": "Large",
+                "Tone": "Danger"
+            },
+            "spec": {
+                "root": {
+                    "name": "Size=Large, Tone=Danger",
+                    "width": 40,
+                    "height": 40,
+                    "radius": [
+                        8,
+                        8,
+                        8,
+                        8
+                    ],
+                    "hugWidth": false,
+                    "fill": {
+                        "r": 224,
+                        "g": 49,
+                        "b": 49,
+                        "a": 1
+                    },
+                    "fillTypes": [],
+                    "opacity": 1,
+                    "stroke": null,
+                    "shadows": [],
+                    "blendMode": null,
+                    "blur": {
+                        "layer": null,
+                        "background": null
+                    },
+                    "layout": null
+                },
+                "texts": [],
+                "icons": []
+            }
+        }
+    ]
+}

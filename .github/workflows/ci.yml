@@ -35,6 +35,8 @@ jobs:
             # `figma-qa` bin only links once dist/cli.js exists.
             - run: pnpm install --frozen-lockfile --offline
             - run: pnpm typecheck
+            # Fixture reports run stories in Chromium.
+            - run: pnpm exec playwright install --with-deps chromium
             - run: pnpm test
             - name: figma-qa doctor
               working-directory: fixtures/${{ matrix.fixture }}
@@ -42,6 +44,5 @@ jobs:
             - name: Build Storybook
               working-directory: fixtures/${{ matrix.fixture }}
               run: pnpm build-storybook
-            - run: pnpm exec playwright install --with-deps chromium
             - name: Kit panel visible
               run: pnpm smoke:panel fixtures/${{ matrix.fixture }}/storybook-static

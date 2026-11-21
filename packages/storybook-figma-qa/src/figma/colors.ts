@@ -1,10 +1,11 @@
-// Browser side: colours for Figma spec lines, in the kit's own terms. The kit writes tokens as
-// `hsl(H S% L% / A)` (src/styles/tokens.css, tokens-supplement.css), so mismatch lines print HSL in that format and
-// name the nearest token on each side: "wrong token used" vs "token drifted from Figma" becomes readable at a glance.
+// Browser side: colours for Figma spec lines, in the project's own terms. Mismatch lines print HSL and name the nearest
+// colour token on each side: "wrong token used" vs "token drifted from Figma" becomes readable at a glance.
+// Tokens are read from the stylesheets the preview loaded, so the project lists no token files.
 // Comparison itself stays in sRGB bytes (spec.ts): even per channel, unlike hue on near-greys.
 import type { Rgba } from './types.ts';
-import supplementCss from '../../src/styles/tokens-supplement.css?raw';
-import tokensCss from '../../src/styles/tokens.css?raw';
+
+/** Colour token custom properties. Project-configurable later (`tokens.prefix`). */
+const TOKEN_PREFIX = '--color-';
 
 const canvas = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
 
@@ -92,16 +93,41 @@ export function toHsl({ r, g, b, a }: Rgba): string {
 
 type Token = { name: string; alias: boolean; rgba: Rgba };
 
-/** Every `--color-*` in the token files, aliases resolved; the supplement wins on duplicates, as in the cascade. */
+/** Every style rule's declarations, inside `@layer`, `@media` and other grouping rules. Cross-origin sheets are skipped. */
+function* declarations(rules: CSSRuleList): Generator<CSSStyleDeclaration> {
+    for (const rule of rules) {
+        if (rule instanceof CSSStyleRule) {
+            yield rule.style;
+        }
+        if ('cssRules' in rule && rule.cssRules instanceof CSSRuleList) {
+            yield* declarations(rule.cssRules);
+        }
+    }
+}
+
+function sheetRules(sheet: CSSStyleSheet): CSSRuleList | null {
+    try {
+        return sheet.cssRules;
+    } catch {
+        return null;
+    }
+}
+
+/** Every colour token in the loaded stylesheets, aliases resolved; later declarations win, as in the cascade. */
 function parseTokens(): Token[] {
     const raw = new Map<string, string>();
-    for (const css of [tokensCss, supplementCss]) {
-        for (const match of css.matchAll(/(--color-[\w-]+)\s*:\s*([^;]+);/g)) {
-            raw.set(match[1] ?? '', (match[2] ?? '').trim());
+    for (const sheet of document.styleSheets) {
+        const rules = sheetRules(sheet);
+        for (const style of rules ? declarations(rules) : []) {
+            for (const property of style) {
+                if (property.startsWith(TOKEN_PREFIX)) {
+                    raw.set(property, style.getPropertyValue(property).trim());
+                }
+            }
         }
     }
     const resolve = (value: string, depth = 0): string | null => {
-        const reference = /^var\((--color-[\w-]+)\)$/.exec(value)?.[1];
+        const reference = /^var\((--[\w-]+)\)$/.exec(value)?.[1];
         if (!reference) {
             return value;
         }
@@ -220,4 +246,25 @@ export function deltaEOK(a: Rgba, b: Rgba): number {
     const [l2, a2, b2] = oklab(b);
 
     return Math.hypot(l1 - l2, a1 - a2, b1 - b2);
+}
+
+/** The colour behind an element: its own and its ancestors' backgrounds composited, page ground at the bottom. */
+export function backgroundOf(element: Element): Rgba {
+    const layers: Rgba[] = [];
+    for (let node: Element | null = element; node; node = node.parentElement) {
+        const layer = toRgba(getComputedStyle(node).backgroundColor);
+        if (layer.a > 0) {
+            layers.push(layer);
+            if (layer.a >= 1) {
+                break;
+            }
+        }
+    }
+
+    return layers.reduceRight<Rgba>(
+        (under, layer) => {
+            return over(layer, under);
+        },
+        { r: 0, g: 0, b: 0, a: 1 }
+    );
 }
