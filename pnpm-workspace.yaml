@@ -1,0 +1,12 @@
+packages:
+  - packages/*
+  - fixtures/*
+
+# Fixtures get a hard-linked copy of the kit with peers (storybook, react, vitest) resolved against
+# each fixture's own versions, like a real install, instead of a symlink resolving the kit's dev copies.
+injectWorkspacePackages: true
+syncInjectedDepsAfterScripts:
+  - build
+
+onlyBuiltDependencies:
+  - esbuild

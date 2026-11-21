@@ -1,0 +1,18 @@
+{
+    "name": "storybook-figma-qa-monorepo",
+    "private": true,
+    "type": "module",
+    "packageManager": "pnpm@10.34.9",
+    "engines": {
+        "node": ">=22.12"
+    },
+    "scripts": {
+        "build": "pnpm --filter @phenomenon-studio/storybook-figma-qa build",
+        "typecheck": "pnpm -r typecheck",
+        "test": "pnpm --filter @phenomenon-studio/storybook-figma-qa test",
+        "smoke:panel": "node scripts/smoke-panel.mjs"
+    },
+    "devDependencies": {
+        "playwright": "1.65.1"
+    }
+}
