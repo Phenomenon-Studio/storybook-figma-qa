@@ -1,0 +1,35 @@
+# AGENTS.md — storybook-figma-qa
+
+Layout and commands: [`README.md`](README.md). CI is the definition of done: [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+
+## Tickets
+
+Spec and tickets live outside this repo, in the consumer project: `../amber/storybook-mcp/.scratch/figma-qa-kit/` (`spec.md`, `issues/NN-*.md`). Start sessions here with `claude --add-dir ../amber/storybook-mcp`.
+
+- Code and its commits go here. Ticket bookkeeping goes there as a separate commit: `**Status:** resolved`, ticked criteria, and an `## Answer` section (date, kit commit SHAs, CI run, decisions a later ticket needs).
+- When a ticket settles a fact the spec states differently, update the spec line in the same bookkeeping commit.
+
+## Both majors, always
+
+Every change must hold on `fixtures/sb10` (Storybook 10.6, Vitest 4) **and** `fixtures/sb11` (Storybook 11 beta, Vitest 5). Prove behaviour by running the real `figma-qa` binary in both fixtures (`test/` drives the CLI against them); unit tests are for pure logic only.
+
+## Gotchas
+
+- **Setup order**: `pnpm install` → `pnpm build` → `pnpm install --offline`. The `figma-qa` bin links only once `dist/cli.js` exists, and fixtures hold an injected copy of the kit that syncs after `build`: rebuild before running anything in a fixture.
+- **pnpm 10**, pinned in `packageManager`: pnpm 11 needs Node ≥ 22.13, the floor is 22.12.
+- **Manager entry uses classic JSX** (`/** @jsxRuntime classic */` + `import React`): SB 10's manager shares `react` but not `react/jsx-runtime`.
+- **Preview side lives in `definePreview({ addons })`**: CSF Next ignores preset `previewAnnotations`. `definePreviewAddon` comes from `storybook/internal/csf` (the one sanctioned internal import).
+- **Edit user config with magicast** on literal shapes only; any other shape prints the exact snippet and exits 2. `storybook/internal/*` AST APIs changed in 11. Safe/unsafe shape list: ticket 02 `## Answer`.
+- **Vitest setup files register nothing**: `setProjectAnnotations` throws on 11.
+- **Agent skills install** with `DISABLE_TELEMETRY=1 npx -y skills@<pinned> add ./node_modules/@phenomenon-studio/storybook-figma-qa/skills --copy -y -a claude-code codex`; without `-a` it writes ~55 agent dirs on machines with no detected agent.
+
+## Package contract
+
+- ESM only. Peers `storybook ^10.6.0 || ^11.0.0-0`, `vitest ^4 || ^5`, `react`; engines Node ≥ 22.12, Vite ≥ 6.3. Widening or narrowing a range is a semver decision.
+- CLI exit codes: 0 ok, 1 design failure, 2 harness or setup error. Only `init` prompts. Commands load lazily so heavy deps cost only the command that uses them.
+- Any `figma-qa.config.ts` or committed refs format change is a **major** and ships a `figma-qa migrate` step.
+- `skills/` holds thin skills: they call CLI commands and keep only judgment.
+
+## Style
+
+Match the surrounding code: 4-space indent, block-bodied arrows with explicit `return`, relative imports with `.ts` extensions, comments that state the reason. Conventional Commits.
