@@ -146,9 +146,11 @@ export async function report(argv: string[]): Promise<number> {
     await rm(path.join(root, RESULTS_DIR), { recursive: true, force: true });
 
     // `--json` keeps stdout for the summary: Vitest's output and anything plugins log go to stderr.
-    const log = console.log;
+    // Redirect the stream, not `console.log`: Storybook writes its first-run telemetry notice
+    // straight to `process.stdout`.
+    const writeStdout = process.stdout.write;
     if (options.json) {
-        console.log = console.error;
+        process.stdout.write = process.stderr.write.bind(process.stderr) as typeof process.stdout.write;
     }
     let summary: ReportSummary;
     try {
@@ -183,7 +185,7 @@ export async function report(argv: string[]): Promise<number> {
     } catch (error) {
         summary = { exitCode: 2, cells: noCells(), stories: [], errors: [message(error)] };
     } finally {
-        console.log = log;
+        process.stdout.write = writeStdout;
     }
 
     if (options.json) {

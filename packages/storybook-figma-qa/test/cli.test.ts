@@ -1,6 +1,6 @@
 // Seam 1: the real `figma-qa` binary, run the way a consumer runs it, inside each fixture project.
 import { execFile } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
@@ -112,6 +112,17 @@ describe.each(FIXTURES)('figma-qa report in fixtures/%s', (fixture) => {
             return cell.status === 'approved';
         });
         expect(approved?.approval).toContain('WCAG 1.4.11');
+    });
+
+    // A fresh install (as on CI) has no Storybook cache, so Storybook prints its telemetry
+    // notice straight to process.stdout during the run.
+    it('keeps --json stdout to the summary on the first run after install', async () => {
+        await rm(path.join(fixtureDir(fixture), 'node_modules/.cache/storybook'), { recursive: true, force: true });
+
+        const { code, stderr, summary } = await report(fixture, 'Swatch.figma');
+
+        expect(code, stderr).toBe(0);
+        expect(summary.exitCode).toBe(0);
     });
 
     it('exits 1 when a cell differs from Figma', async () => {
