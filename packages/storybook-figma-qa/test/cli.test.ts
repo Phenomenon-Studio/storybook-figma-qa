@@ -4,35 +4,46 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 
-const run = promisify(execFile);
+const execFileAsync = promisify(execFile);
 const FIXTURES = ['sb10', 'sb11'] as const;
 
-function fixtureDir(name: string) {
-    return fileURLToPath(new URL(`../../../fixtures/${name}`, import.meta.url));
+type Fixture = (typeof FIXTURES)[number];
+
+function fixtureDir(fixture: Fixture) {
+    return fileURLToPath(new URL(`../../../fixtures/${fixture}`, import.meta.url));
 }
 
-async function figmaQa(fixture: string, args: string[]) {
+/** `execFile` rejects on non-zero exit with the exit code and output on the error. */
+function isExitError(error: unknown): error is Error & { code: number; stdout: string; stderr: string } {
+    return error instanceof Error && typeof (error as { code?: unknown }).code === 'number';
+}
+
+async function runCli(fixture: Fixture, args: string[]) {
     try {
-        const { stdout, stderr } = await run('pnpm', ['exec', 'figma-qa', ...args], { cwd: fixtureDir(fixture) });
+        const { stdout, stderr } = await execFileAsync('pnpm', ['exec', 'figma-qa', ...args], {
+            cwd: fixtureDir(fixture),
+        });
 
         return { code: 0, stdout, stderr };
     } catch (error) {
-        const { code, stdout, stderr } = error as { code: number; stdout: string; stderr: string };
+        if (!isExitError(error)) {
+            throw error;
+        }
 
-        return { code, stdout, stderr };
+        return { code: error.code, stdout: error.stdout, stderr: error.stderr };
     }
 }
 
 describe.each(FIXTURES)('figma-qa in fixtures/%s', (fixture) => {
     it('doctor exits 0', async () => {
-        const result = await figmaQa(fixture, ['doctor']);
+        const result = await runCli(fixture, ['doctor']);
 
         expect(result.code, result.stderr).toBe(0);
         expect(result.stdout).toContain('doctor');
     });
 
     it('unknown command exits 2 with usage', async () => {
-        const result = await figmaQa(fixture, ['nope']);
+        const result = await runCli(fixture, ['nope']);
 
         expect(result.code).toBe(2);
         expect(result.stderr).toContain('Usage: figma-qa');

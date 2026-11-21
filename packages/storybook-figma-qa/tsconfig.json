@@ -8,8 +8,17 @@
         "verbatimModuleSyntax": true,
         "rewriteRelativeImportExtensions": true,
         "skipLibCheck": true,
-        "types": ["node"],
-        "noEmit": true
+        "types": [
+            "node"
+        ],
+        "noEmit": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "erasableSyntaxOnly": true
     },
-    "include": ["src", "test", "vitest.config.ts"]
+    "include": [
+        "src",
+        "test",
+        "vitest.config.ts"
+    ]
 }

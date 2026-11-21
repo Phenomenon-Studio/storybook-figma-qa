@@ -17,7 +17,9 @@ const USAGE = [
     'Usage: figma-qa <command> [options]',
     '',
     'Commands:',
-    ...Object.entries(COMMANDS).map(([name, help]) => `  ${name.padEnd(10)} ${help}`),
+    ...Object.entries(COMMANDS).map(([name, help]) => {
+        return `  ${name.padEnd(10)} ${help}`;
+    }),
 ].join('\n');
 
 function isCommand(name: string): name is Command {

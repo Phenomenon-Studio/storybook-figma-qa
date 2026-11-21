@@ -1,4 +1,4 @@
-// Smoke check: a built Storybook (`storybook-static` in the cwd) loads the kit addon and shows its empty panel.
+// Smoke check: a built Storybook loads the kit addon and shows its empty panel.
 // Usage: node scripts/smoke-panel.mjs <storybook-static dir>
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
@@ -6,7 +6,7 @@ import { extname, join, resolve } from 'node:path';
 import { chromium } from 'playwright';
 
 const root = resolve(process.argv[2] ?? 'storybook-static');
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' };
+const MIME_TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' };
 
 const server = createServer((req, res) => {
     const path = decodeURIComponent(new URL(req.url, 'http://x').pathname);
@@ -22,11 +22,13 @@ const server = createServer((req, res) => {
         file = join(file, 'index.html');
     }
 
-    res.writeHead(200, { 'content-type': TYPES[extname(file)] ?? 'application/octet-stream' });
+    res.writeHead(200, { 'content-type': MIME_TYPES[extname(file)] ?? 'application/octet-stream' });
     createReadStream(file).pipe(res);
 });
 
-await new Promise((done) => server.listen(0, '127.0.0.1', done));
+await new Promise((done) => {
+    server.listen(0, '127.0.0.1', done);
+});
 
 const { port } = server.address();
 const browser = await chromium.launch();
