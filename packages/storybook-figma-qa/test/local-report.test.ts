@@ -6,13 +6,27 @@ import type { Fixture } from './cli.ts';
 import { spawn } from 'node:child_process';
 import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import net from 'node:net';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fixtureDir, FIXTURES, HOST_WARNING, json, report, runCli } from './cli.ts';
 
 const FAKE_DOCKER = fileURLToPath(new URL('./fake-docker', import.meta.url));
+
+/**
+ * Playwright's installed browsers. On Linux they live under `$XDG_CACHE_HOME`, which the browser tests point at a temp
+ * dir for the token: pin the real location first, or neither host Chromium nor the fake image's server finds one.
+ */
+const PLAYWRIGHT_BROWSERS: Record<string, string> =
+    process.platform === 'linux' && !process.env.PLAYWRIGHT_BROWSERS_PATH
+        ? {
+              PLAYWRIGHT_BROWSERS_PATH: path.join(
+                  process.env.XDG_CACHE_HOME ?? path.join(homedir(), '.cache'),
+                  'ms-playwright'
+              ),
+          }
+        : {};
 const FIGMA_FILES = [
     'src/Glyph.figma.stories.tsx',
     'src/Misconfigured.figma.stories.tsx',
@@ -114,6 +128,7 @@ describe.each(FIXTURES)('figma-qa report picks a browser in fixtures/%s', (fixtu
             FIGMA_QA_BROWSER_PORT: String(await freePort()),
             // The browser token lands here, not in the developer's cache.
             XDG_CACHE_HOME: dir,
+            ...PLAYWRIGHT_BROWSERS,
         };
     });
 
