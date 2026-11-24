@@ -52,6 +52,161 @@ Positional filters intersect the scanned files: a filter with `*`, `?` or `--` i
 
 `--ci` is the PR workflow's mode: it opens nothing and never starts Docker. The browser is the workflow's service container when `FIGMA_QA_BROWSER_WS` names its endpoint, else host Chromium with the usual warning. Beside the HTML report it writes `figma-qa/.results/summary.md`, the sticky comment's body: the `<!-- figma-qa -->` marker, the verdict, a per-story table of pass / fail / approved / missing cells and triage counts, and harness and setup errors (and `harness` cells) labelled "not a design verdict"; a rejected token adds "rotate the `FIGMA_TOKEN` repository secret".
 
+## Reading the output
+
+Every command writes results to stdout and progress or diagnostics to stderr. It exits 0 (ok), 1 (design failure, `report` only) or 2 (harness or setup error). The examples below are real runs in `fixtures/sb11`, shortened where a line repeats. Each new command or flag adds its example here (AGENTS.md).
+
+### `figma-qa report`
+
+Vitest's own progress comes first: `✓` / `×` per story file and story. A `×` there only means the story's checks failed, and the summary below says why. The summary is one block per story, then run-level lines:
+
+```text
+ERROR src/Misconfigured.figma.stories.tsx › No Matrix: error: Story is tagged `figma` but has no `parameters.figmaMatrix.blocks`.
+PASS  Swatch › Matrix: 2 pass, 0 fail, 2 approved, 2 missing
+FAIL  Swatch › Matrix: 0 pass, 4 fail, 0 approved, 2 missing
+      ✗ swatch · Size=Small, Tone=Brand [token]
+        approved: { when: { Size: ['Small'], Tone: ['Brand'] }, reason: 'TODO: why this deviation is deliberate (WCAG criterion or decision)' },
+      ✗ swatch · Size=Small, Tone=Neutral
+        approved: { when: { Size: ['Small'], Tone: ['Neutral'] }, reason: '…' },
+FAIL  Swatch › Blocked: 0 pass, 4 fail, 0 approved, 2 missing
+      ✗ swatch · Size=Small, Tone=Brand [harness]
+        not measured: fix the capture, no approval can cover it
+WARN  Host Chromium (--host-browser): pixels are not comparable to CI.
+
+figma-qa report: 2 pass, 8 fail, 2 approved, 6 missing (exit 2)
+Timings: doctor 0.0 s, browser 0.0 s, collect 0.7 s, tests 2.4 s, report 0.0 s
+HTML report: figma-qa/.results/report/index.html
+```
+
+- **`PASS` / `FAIL` / `ERROR` `<title> › <story>`** is the story's verdict.
+  - `ERROR` means the story measured nothing (misconfigured, uncached set, failed to render). It is exit 2, not a design verdict.
+  - The counts are matrix cells, one per Figma variant. `approved` cells differ, but an `approved` entry in the story covers them. `missing` cells are variants Figma draws that the code doesn't have (`renderCell` returned null). Neither fails the run.
+- **`✗ <block> · <variant> [<triage>]`** is a failing cell.
+  - `[token]`: another kit token than Figma's.
+  - `[value]`: a spec number is off.
+  - `[harness]`: the capture couldn't be measured.
+  - No tag: code can't tell, so this is where judgment goes. Open the HTML report for that cell's expected / actual rows and the pixel diff.
+- **`approved: { … },`** is only for a deviation a human confirms is deliberate. Paste it into that block's `approved` and replace the `TODO` reason. A fix needs no entry. Harness cells print `not measured` instead, because no approval can cover them.
+- **`ERROR <message>`** without a story is a run-level harness or setup error. It is exit 2, and the message names the fix (often `figma-qa init` or `--host-browser`).
+- **`WARN`** lines never change the exit code. They cover host Chromium, Figma changed since the last sync, unnamed variables and `No Figma stories affected.`
+- **The totals line** ends with the exit code. `Timings` show where the time went, and `HTML report` is the path to open. `Figma diff panel: <url>` follows when `storybook dev` is running.
+
+`--json` prints only the summary on stdout; Vitest's output goes to stderr. The same object is written to `figma-qa/.results/run.json`:
+
+```json
+{
+    "exitCode": 1,
+    "hostBrowser": true,
+    "cells": { "pass": 0, "fail": 8, "approved": 0, "missing": 4 },
+    "files": ["src/SwatchTriage.figma.stories.tsx"],
+    "stories": [
+        {
+            "storyId": "swatch-figma-triage--matrix",
+            "title": "Swatch",
+            "name": "Matrix",
+            "file": "src/SwatchTriage.figma.stories.tsx",
+            "verdict": "fail",
+            "cells": { "pass": 0, "fail": 4, "approved": 0, "missing": 2 },
+            "error": null,
+            "results": "figma-qa/.results/results/swatch-figma-triage--matrix.json",
+            "failing": [
+                {
+                    "block": "swatch",
+                    "variant": "Size=Small, Tone=Brand",
+                    "triage": "token",
+                    "approved": "{ when: { Size: ['Small'], Tone: ['Brand'] }, reason: 'TODO: …' }"
+                }
+            ]
+        }
+    ],
+    "errors": [],
+    "warnings": ["Host Chromium (--host-browser): pixels are not comparable to CI."],
+    "timings": { "doctor": 1, "browser": 0, "collect": 799, "tests": 2307, "report": 27 },
+    "panelUrl": null
+}
+```
+
+- **The verdict fields** are `exitCode`, `stories[].verdict` and `stories[].error`. `errors` holds failures outside any story.
+- **`stories[].results`** points at the per-story results JSON. It has every cell's spec rows (`spec.mismatches`: element, property, `expected` (Figma), `actual` (story), `delta`, `tolerance`) and its pixel diff (`image`). Read that file to see what differs.
+- **`failing[].approved`** is `null` for `harness` cells.
+
+`--ci` also writes `figma-qa/.results/summary.md`, the PR comment body:
+
+```markdown
+<!-- figma-qa -->
+## Figma QA: fail
+
+0 pass · 8 fail · 0 approved · 4 missing
+
+| Story | Verdict | Pass | Fail | Approved | Missing | Triage |
+| --- | --- | --- | --- | --- | --- | --- |
+| Swatch › Matrix | fail | 0 | 4 | 0 | 2 | token 1 · value 1 · uncategorised 2 |
+| Swatch › Blocked | fail | 0 | 4 | 0 | 2 | harness 4 (not a design verdict) |
+
+<details><summary>Failing cells</summary>
+
+- Swatch › Matrix: swatch · Size=Small, Tone=Brand (token)
+- …
+
+</details>
+
+### Warnings
+
+- Host Chromium (--host-browser): pixels are not comparable to CI.
+```
+
+- **The headline** reads `pass`, `fail`, `harness or setup error (not a design verdict)` (exit 2), or `cells not measured (not a design verdict)` (exit 1 from `harness` cells only).
+- **`### Errors (not a design verdict)`** lists story and run errors.
+- **`No Figma stories affected.`** replaces the table on a `--changed` run that reached no Figma story.
+
+### `figma-qa doctor`
+
+```text
+ok    config: no figma-qa.config.ts, defaults apply
+warn  icons: none match src/icons/*.svg; Figma cells render without glyphs (set icons.glob)
+ok    setup: kit addon in .storybook/main, figma-qa Vitest project
+ok    browser: Docker runs; report starts the pinned browser image
+figma-qa doctor: done
+```
+
+Each line is one check:
+
+- **`ok`**: the check passed.
+- **`warn`**: the report still runs, but this is worth fixing. Exit stays 0.
+- **`block`**: setup is broken, and `report` would exit 2 too. The line names the fix, usually `figma-qa init`. Doctor exits 2.
+
+A config that fails to load prints `figma-qa doctor: <reason>` on stderr and exits 2.
+
+### `figma-qa init`
+
+```text
+figma-qa init --dry-run: the plan; nothing is written or run
+ok    storybook: 11.0.0-beta.3 with @storybook/react-vite
+write .npmrc: @phenomenon-studio:registry=https://npm.pkg.github.com
+ok    package: @phenomenon-studio/storybook-figma-qa
+ok    .storybook/main.ts: kit in addons
+ok    vitest.config.ts: figmaQa() in test.projects
+write AGENTS.md: figma-qa rules block
+run   npx -y skills@1.9.0 add ./node_modules/@phenomenon-studio/storybook-figma-qa/skills --copy -y -a claude-code codex
+figma-qa init: dry run, nothing written
+```
+
+Each line is one step:
+
+- **`ok`**: the step is already in place, and init leaves it alone.
+- **`write`**: init creates or changes the file.
+- **`edit`**: you make this change by hand. Init exits 2 after printing the snippet.
+- **`run`**: init runs the command.
+- **`plan`**: init would act, but can't yet (it waits on a step before it).
+
+A re-run on a set-up project prints only `ok` lines. If a config has a shape init won't edit, init prints `figma-qa init: one file needs this edit by hand, then re-run init:` and the exact snippet on stderr, then exits 2.
+
+### `figma-qa variables`
+
+With no argument, stdout is only runnable script: one block per Figma file, headed by `// Figma file <key>: N unnamed. Run with use_figma …`. Paste a whole block into `use_figma`. When nothing is unnamed, stdout is empty and stderr says `figma-qa variables: every bound variable is named in figma-qa/__refs__/variables.json.`
+
+With `<file>` or `-`, it merges the script's JSON output and prints what changed: `figma-qa variables: named 2: VariableID:1:2, VariableID:1:3; every bound variable is named.` A second line lists ids `not found in the file the script ran in`. They stay unnamed: the script ran in another file, or the variable was deleted.
+
 ## Figma variables
 
 Figma colours bound to a variable are held to the CSS token `tokenName` maps its name to (config; default `--color-` + the kebab-cased path). A colour matching Figma by value but painted with another token fails as "right value, wrong token": the check overrides the token for the cell's element and its ancestors and sees whether the computed colour follows. Names come from `<refsDir>/variables.json`, since the REST variables endpoint is Enterprise-only.

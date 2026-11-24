@@ -34,6 +34,7 @@ Every change must hold on `fixtures/sb10` (Storybook 10.6, Vitest 4) **and** `fi
 - CLI exit codes: 0 ok, 1 design failure, 2 harness or setup error. Only `init` prompts. Commands load lazily so heavy deps cost only the command that uses them.
 - Any `figma-qa.config.ts` or committed refs format change is a **major** and ships a `figma-qa migrate` step.
 - `skills/` holds thin skills: they call CLI commands and keep only judgment.
+- Every command and flag ships a README "Reading the output" example: a real fixture run (shortened, not invented) and how to read each kind of line or field. A change to what a command prints updates its example in the same commit.
 
 ## Style
 
