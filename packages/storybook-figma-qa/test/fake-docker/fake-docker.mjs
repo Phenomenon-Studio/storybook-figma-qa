@@ -45,8 +45,10 @@ if (mode === 'fail') {
     process.exit(1);
 }
 const port = Number(file.services.browser.ports[0].split(':')[1]);
+// The secret endpoint path the report connects to.
+const serverPath = /--path (\S+)/.exec(file.services.browser.command.at(-1))?.[1] ?? '/';
 const manifest = createRequire(path.join(process.cwd(), 'package.json')).resolve('playwright/package.json');
-const server = spawn(process.execPath, [path.join(path.dirname(manifest), 'cli.js'), 'run-server', '--port', String(port), '--host', '127.0.0.1'], {
+const server = spawn(process.execPath, [path.join(path.dirname(manifest), 'cli.js'), 'run-server', '--port', String(port), '--host', '127.0.0.1', '--path', serverPath], {
     detached: true,
     stdio: 'ignore',
 });

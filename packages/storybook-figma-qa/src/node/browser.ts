@@ -2,7 +2,10 @@
 // pixels match CI; without it, or with `--host-browser`, the host's Chromium runs and the report says the pixels
 // aren't comparable to CI. Docker present but the image failing to start is a harness error, not a quiet fallback.
 import { execFile, spawn } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import { homedir } from 'node:os';
 import path from 'node:path';
 import { BROWSER_PORT, BROWSER_PORT_ENV } from '../constants.ts';
 
@@ -39,7 +42,27 @@ function playwrightVersion(root: string): string {
     return manifest.version;
 }
 
-function composeFile(image: string, version: string, port: number): string {
+/**
+ * The secret endpoint path of the browser server. The container stays up between runs, so without it any local
+ * process or web page could drive its Chromium. One per user (the container is per machine): a token that changed
+ * every run would recreate the container each time.
+ */
+async function serverToken(): Promise<string> {
+    const file = path.join(process.env.XDG_CACHE_HOME ?? path.join(homedir(), '.cache'), 'figma-qa', 'browser-token');
+    const existing = (await readFile(file, 'utf8').catch(() => {
+        return '';
+    })).trim();
+    if (/^[0-9a-f]{48}$/.test(existing)) {
+        return existing;
+    }
+    const token = randomBytes(24).toString('hex');
+    await mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
+    await writeFile(file, token, { mode: 0o600 });
+
+    return token;
+}
+
+function composeFile(image: string, version: string, port: number, token: string): string {
     // The healthcheck makes `up --wait` return only once the server accepts connections.
     const probe = `require('net').connect(${CONTAINER_PORT}, '127.0.0.1').on('connect', () => process.exit(0)).on('error', () => process.exit(1))`;
 
@@ -53,7 +76,7 @@ function composeFile(image: string, version: string, port: number): string {
                 command: [
                     '/bin/sh',
                     '-c',
-                    `npx -y playwright@${version} run-server --port ${CONTAINER_PORT} --host 0.0.0.0`,
+                    `npx -y playwright@${version} run-server --port ${CONTAINER_PORT} --host 0.0.0.0 --path /${token}`,
                 ],
                 ports: [`127.0.0.1:${port}:${CONTAINER_PORT}`],
                 healthcheck: {
@@ -108,8 +131,9 @@ export async function pickBrowser(root: string, options: { hostBrowser: boolean 
     }
     const image = `mcr.microsoft.com/playwright:v${version}-noble`;
     const port = Number(process.env[BROWSER_PORT_ENV] ?? BROWSER_PORT);
+    const token = await serverToken();
     try {
-        await composeUp(composeFile(image, version, port));
+        await composeUp(composeFile(image, version, port, token));
     } catch (error) {
         throw new Error(
             `Pinned browser ${image} did not start (${error instanceof Error ? error.message : String(error)}); ` +
@@ -118,5 +142,5 @@ export async function pickBrowser(root: string, options: { hostBrowser: boolean 
         );
     }
 
-    return { kind: 'image', wsEndpoint: `ws://127.0.0.1:${port}/` };
+    return { kind: 'image', wsEndpoint: `ws://127.0.0.1:${port}/${token}` };
 }

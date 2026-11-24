@@ -112,6 +112,8 @@ describe.each(FIXTURES)('figma-qa report picks a browser in fixtures/%s', (fixtu
             FAKE_DOCKER_LOG: path.join(dir, 'calls.jsonl'),
             FAKE_DOCKER_PID: path.join(dir, 'server.pid'),
             FIGMA_QA_BROWSER_PORT: String(await freePort()),
+            // The browser token lands here, not in the developer's cache.
+            XDG_CACHE_HOME: dir,
         };
     });
 
@@ -162,6 +164,10 @@ describe.each(FIXTURES)('figma-qa report picks a browser in fixtures/%s', (fixtu
         expect(file).toMatchObject({
             services: { browser: { image: `mcr.microsoft.com/playwright:v${version}-noble` } },
         });
+        // The server answers only on a per-user secret path.
+        const token = await readFile(path.join(dir, 'figma-qa/browser-token'), 'utf8');
+        expect(token).toMatch(/^[0-9a-f]{48}$/);
+        expect(JSON.stringify(file)).toContain(`--path /${token}`);
     });
 
     it('falls back to host Chromium with a warning when Docker is not running', async () => {
