@@ -363,7 +363,7 @@ async function run(root: string, options: Options, state: RunState): Promise<Ran
     }
     try {
         const browser = await timed(state.timings, 'browser', () => {
-            return pickBrowser(root, { hostBrowser: options.hostBrowser, ci: options.ci });
+            return pickBrowser(root, { hostBrowser: options.hostBrowser });
         });
         if (browser.kind === 'image') {
             process.env[BROWSER_WS_ENV] = browser.wsEndpoint;

@@ -1,0 +1,200 @@
+name: Figma QA
+
+# Reusable PR check for consumer repos: `figma-qa report --ci --changed <base>` on the stories the PR reaches, one
+# sticky comment with the summary, and the HTML report as an artifact for designers. Callers pin `@v1`; the caller
+# job is in the kit README ("PR workflow").
+on:
+    workflow_call:
+        inputs:
+            paths:
+                description: Pathspecs (space- or newline-separated); when set, a PR changing none of them skips the check.
+                type: string
+                default: ''
+            working-directory:
+                description: The project with the kit installed, relative to the repo root (monorepos).
+                type: string
+                default: .
+            setup:
+                description: Shell run at the repo root after install, before the report (codegen, a local build).
+                type: string
+                default: ''
+        secrets:
+            FIGMA_TOKEN:
+                required: false
+
+permissions:
+    contents: read
+
+jobs:
+    gate:
+        name: Figma QA gate
+        runs-on: ubuntu-latest
+        outputs:
+            run: ${{ steps.scope.outputs.run }}
+        steps:
+            - id: token
+              env:
+                  EVENT: ${{ github.event_name }}
+                  FIGMA_TOKEN: ${{ secrets.FIGMA_TOKEN }}
+              run: |
+                  if [ "$EVENT" != pull_request ]; then
+                      echo "::notice::Figma QA runs on pull_request only (got $EVENT): skipped"
+                      echo "run=false" >> "$GITHUB_OUTPUT"
+                  elif [ -z "$FIGMA_TOKEN" ]; then
+                      # Fork PRs land here too: GitHub withholds secrets from them.
+                      echo "::notice::FIGMA_TOKEN secret is not set (or not passed by the caller): Figma QA skipped"
+                      echo "run=false" >> "$GITHUB_OUTPUT"
+                  else
+                      echo "run=true" >> "$GITHUB_OUTPUT"
+                  fi
+            - uses: actions/checkout@v5
+              if: steps.token.outputs.run == 'true' && inputs.paths != ''
+              with:
+                  fetch-depth: 0
+                  persist-credentials: false
+            - id: scope
+              env:
+                  RUN: ${{ steps.token.outputs.run }}
+                  PATHS: ${{ inputs.paths }}
+                  BASE: ${{ github.event.pull_request.base.sha }}
+              run: |
+                  if [ "$RUN" != true ] || [ -z "$PATHS" ]; then
+                      echo "run=$RUN" >> "$GITHUB_OUTPUT"
+                      exit 0
+                  fi
+                  # Word splitting is the input's format: one pathspec per word.
+                  # shellcheck disable=SC2086
+                  if git diff --quiet "$BASE...HEAD" -- $PATHS; then
+                      echo "::notice::No change under the paths input: Figma QA skipped"
+                      echo "run=false" >> "$GITHUB_OUTPUT"
+                  else
+                      echo "run=true" >> "$GITHUB_OUTPUT"
+                  fi
+
+    report:
+        name: Figma QA
+        needs: gate
+        if: needs.gate.outputs.run == 'true'
+        runs-on: ubuntu-latest
+        # One run per PR: two pushes racing the comment lookup would post two sticky comments.
+        concurrency:
+            group: figma-qa-${{ github.repository }}-${{ github.event.pull_request.number }}
+            cancel-in-progress: true
+        permissions:
+            contents: read
+            # The kit installs from GitHub Packages with this run's GITHUB_TOKEN.
+            packages: read
+            # The sticky comment.
+            pull-requests: write
+        defaults:
+            run:
+                shell: bash
+        env:
+            BASE: ${{ github.event.pull_request.base.sha }}
+            PROJECT: ${{ inputs.working-directory }}
+        steps:
+            # Full history: `--changed` diffs against the PR base's merge-base.
+            - uses: actions/checkout@v5
+              with:
+                  fetch-depth: 0
+                  persist-credentials: false
+            - id: pm
+              run: |
+                  if [ -f pnpm-lock.yaml ]; then
+                      {
+                          echo "name=pnpm"
+                          echo "exec=pnpm exec"
+                          echo "install=pnpm install --frozen-lockfile"
+                          # pnpm/action-setup reads `packageManager`; without it, the kit's own major.
+                          if ! node -e "process.exit(require('./package.json').packageManager?.startsWith('pnpm@') ? 0 : 1)"; then
+                              echo "pnpm-version=10"
+                          fi
+                      } >> "$GITHUB_OUTPUT"
+                  elif [ -f package-lock.json ]; then
+                      {
+                          echo "name=npm"
+                          echo "exec=npx --no"
+                          echo "install=npm ci"
+                      } >> "$GITHUB_OUTPUT"
+                  else
+                      echo "::error::Figma QA installs with pnpm-lock.yaml or package-lock.json at the repo root; found neither"
+                      exit 2
+                  fi
+            - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0, pinned: job holds FIGMA_TOKEN
+              if: steps.pm.outputs.name == 'pnpm'
+              with:
+                  version: ${{ steps.pm.outputs.pnpm-version }}
+            - uses: actions/setup-node@v5
+              with:
+                  node-version: lts/*
+                  cache: ${{ steps.pm.outputs.name }}
+            # The project's `.npmrc` (written by `figma-qa init`) maps the scope to GitHub Packages; this adds the
+            # auth line, read from the environment so the token never lands on disk.
+            - run: |
+                  # shellcheck disable=SC2016 # literal on purpose: npm and pnpm expand it at install
+                  echo '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' >> ~/.npmrc
+            - name: Install
+              env:
+                  NODE_AUTH_TOKEN: ${{ github.token }}
+                  INSTALL: ${{ steps.pm.outputs.install }}
+              run: $INSTALL
+            - name: Setup
+              if: inputs.setup != ''
+              env:
+                  SETUP: ${{ inputs.setup }}
+              run: bash -euo pipefail -c "$SETUP"
+            # Exit 1 (a cell differs from Figma) and 2 (harness or setup error) fail the job; the steps below still
+            # run. The CLI starts the pinned Playwright image with Docker, tagged from the project's playwright.
+            - name: figma-qa report
+              id: report
+              working-directory: ${{ inputs.working-directory }}
+              env:
+                  FIGMA_TOKEN: ${{ secrets.FIGMA_TOKEN }}
+                  EXEC: ${{ steps.pm.outputs.exec }}
+              run: $EXEC figma-qa report --ci --changed "$BASE"
+            - uses: actions/upload-artifact@v4
+              id: artifact
+              if: always()
+              with:
+                  name: figma-qa-report
+                  path: ${{ inputs.working-directory }}/figma-qa/.results/report
+                  retention-days: 14
+                  if-no-files-found: ignore
+            - name: Sticky comment
+              if: ${{ !cancelled() }}
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  REPO: ${{ github.repository }}
+                  PR: ${{ github.event.pull_request.number }}
+                  REPORTED: ${{ steps.report.outcome != 'skipped' }}
+                  ARTIFACT_URL: ${{ steps.artifact.outputs.artifact-url }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              # The marker and summary path are the CLI's `CI_MARKER` and `CI_SUMMARY_FILE`: rename them together.
+              run: |
+                  marker='<!-- figma-qa -->'
+                  summary="$PROJECT/figma-qa/.results/summary.md"
+                  body="$RUNNER_TEMP/figma-qa-comment.md"
+                  if [ "$REPORTED" = true ] && [ -f "$summary" ]; then
+                      cp "$summary" "$body"
+                  else
+                      # Install or setup failed, or the CLI stopped before writing its summary.
+                      printf '%s\n## Figma QA: harness or setup error (not a design verdict)\n\nThe report did not run to its summary; see the job log.\n' "$marker" > "$body"
+                  fi
+                  {
+                      echo
+                      if [ -n "$ARTIFACT_URL" ]; then
+                          echo "[HTML report]($ARTIFACT_URL) (artifact \`figma-qa-report\`, 14 days) · [job log]($RUN_URL)"
+                      else
+                          echo "[job log]($RUN_URL)"
+                      fi
+                  } >> "$body"
+                  # The first comment of this workflow's bot that starts with the marker is the sticky one.
+                  ids=$(gh api --paginate "repos/$REPO/issues/$PR/comments" \
+                      --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\"))) | .id")
+                  id=${ids%%$'\n'*}
+                  payload=$(jq -n --rawfile body "$body" '{ body: $body }')
+                  if [ -n "$id" ]; then
+                      gh api -X PATCH "repos/$REPO/issues/comments/$id" --input - <<< "$payload" > /dev/null
+                  else
+                      gh api "repos/$REPO/issues/$PR/comments" --input - <<< "$payload" > /dev/null
+                  fi

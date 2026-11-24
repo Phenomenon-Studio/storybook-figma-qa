@@ -24,7 +24,7 @@ const USAGE = [
     'report [filters...] [--changed [base]] [--ci] [--json] [--refresh] [--host-browser] [--no-open]',
     '  filters: component names, or story-id globs (`*`, `?`, `--`); put them before --changed',
     '  --changed [base]: only Figma stories whose imports changed since base (default: uncommitted changes)',
-    '  --ci: no open, no Docker; writes figma-qa/.results/summary.md beside the HTML report',
+    '  --ci: no open; writes figma-qa/.results/summary.md beside the HTML report',
     'init [--yes] [--dry-run] [--next]',
     '  --next: bootstrap Storybook 11 beta when the project has no Storybook',
     'scaffold <figma-url...> --story <path/Component.stories.tsx> [--dry-run]',

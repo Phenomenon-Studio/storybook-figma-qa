@@ -188,6 +188,15 @@ describe.each(FIXTURES)('figma-qa report picks a browser in fixtures/%s', (fixtu
         expect(JSON.stringify(file)).toContain(`--path /${token}`);
     });
 
+    it('starts the pinned image under --ci too: the PR workflow has no other way to run it', async () => {
+        const { code, stderr, summary } = json(await run(['--ci'], 'up'));
+
+        expect(code, stderr).toBe(0);
+        expect(summary.hostBrowser).toBe(false);
+        expect(summary.warnings).toEqual([]);
+        expect(await calls()).toEqual(expect.arrayContaining([expect.arrayContaining(['compose', 'up', '--wait'])]));
+    });
+
     it('falls back to host Chromium with a warning when Docker is not running', async () => {
         const { code, summary } = json(await run([], 'down'));
 

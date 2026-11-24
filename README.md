@@ -50,7 +50,7 @@ Positional filters intersect the scanned files: a filter with `*`, `?` or `--` i
 
 `--changed [base]` keeps only the Figma story files a change reaches, through Vitest's own `changed`: files changed in `git diff base...HEAD` plus staged, unstaged and untracked ones (no base: only those), then each story file's import graph. A change to `.storybook/`, the refs dir, `figma-qa.config.*`, `package.json` or the Vite / Vitest config reaches every Figma story. Filters go before the flag (a following non-option argument is the base) and intersect it. A base git can't resolve (a shallow clone without it) or no repository is exit 2. Nothing affected is exit 0 with the warning `No Figma stories affected.`
 
-`--ci` is the PR workflow's mode: it opens nothing and never starts Docker. The browser is the workflow's service container when `FIGMA_QA_BROWSER_WS` names its endpoint, else host Chromium with the usual warning. Beside the HTML report it writes `figma-qa/.results/summary.md`, the sticky comment's body: the `<!-- figma-qa -->` marker, the verdict, a per-story table of pass / fail / approved / missing cells and triage counts, and harness and setup errors (and `harness` cells) labelled "not a design verdict"; a rejected token adds "rotate the `FIGMA_TOKEN` repository secret".
+`--ci` is the PR workflow's mode: it opens nothing, and picks the browser as a local run does (the pinned image when Docker runs, as it does on GitHub's Ubuntu runners). Beside the HTML report it writes `figma-qa/.results/summary.md`, the sticky comment's body: the `<!-- figma-qa -->` marker, the verdict, a per-story table of pass / fail / approved / missing cells and triage counts, and harness and setup errors (and `harness` cells) labelled "not a design verdict"; a rejected token adds "rotate the `FIGMA_TOKEN` repository secret".
 
 ## `figma-qa scaffold`
 
@@ -251,6 +251,34 @@ Without a token it prints ``figma-qa scaffold: needs FIGMA_TOKEN, as it reads th
 With no argument, stdout is only runnable script: one block per Figma file, headed by `// Figma file <key>: N unnamed. Run with use_figma …`. Paste a whole block into `use_figma`. When nothing is unnamed, stdout is empty and stderr says `figma-qa variables: every bound variable is named in figma-qa/__refs__/variables.json.`
 
 With `<file>` or `-`, it merges the script's JSON output and prints what changed: `figma-qa variables: named 2: VariableID:1:2, VariableID:1:3; every bound variable is named.` A second line lists ids `not found in the file the script ran in`. They stay unnamed: the script ran in another file, or the variable was deleted.
+
+## PR workflow
+
+[`figma-qa.yml`](.github/workflows/figma-qa.yml) is a reusable workflow: on every pull request it runs `figma-qa report --ci --changed <base sha>` on the stories the PR reaches, keeps one sticky comment (the `--ci` summary plus links to the HTML report artifact and the job log) and uploads the report as the `figma-qa-report` artifact for 14 days. Exit 1 and 2 fail the job; it is not meant as a required check. A consumer repo adds:
+
+```yaml
+# .github/workflows/figma-qa.yml
+name: Figma QA
+on: pull_request
+permissions:
+    contents: read
+    packages: read
+    pull-requests: write
+jobs:
+    figma-qa:
+        uses: Phenomenon-Studio/storybook-figma-qa/.github/workflows/figma-qa.yml@v1
+        secrets:
+            FIGMA_TOKEN: ${{ secrets.FIGMA_TOKEN }}
+        # with:
+        #     paths: src .storybook figma-qa   # skip PRs that change none of these
+        #     working-directory: apps/web      # the project with the kit, in a monorepo
+        #     setup: pnpm codegen              # run at the repo root after install
+```
+
+- **`FIGMA_TOKEN`** is a per-repo secret, passed explicitly. Unset (or a fork PR, which gets no secrets) skips the check with a notice. A token Figma rejects turns the comment into "rotate the `FIGMA_TOKEN` repository secret".
+- **Install** is `pnpm install --frozen-lockfile` or `npm ci`, by the lockfile at the repo root. The kit comes from GitHub Packages with the run's `GITHUB_TOKEN` (`packages: read`): the kit package's "Manage Actions access" must list the consumer repo, and this repo's Actions access must allow organization repositories.
+- **Browser**: the CLI starts the pinned Playwright image with Docker, tagged from the project's `playwright`, as a local run does. A `services:` container can't: it takes neither a command (`run-server`) nor a tag computed from the installed version.
+- **The PR's own code** runs with `FIGMA_TOKEN` and a token that can comment, as in any same-repo CI job.
 
 ## Figma variables
 

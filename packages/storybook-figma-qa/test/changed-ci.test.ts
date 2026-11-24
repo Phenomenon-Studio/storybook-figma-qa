@@ -110,9 +110,9 @@ describe.skipIf(process.platform === 'win32').each(FIXTURES)('figma-qa report --
         await writeFile(opener, '#!/bin/sh\nprintf %s "$1" > "$OPENED"\n');
         await chmod(opener, 0o755);
         env = {
-            // A Docker that runs: --ci must still not ask it.
+            // A stopped Docker: the pinned image is `local-report.test.ts`'s, this run is about the summary.
             PATH: `${FAKE_DOCKER}${path.delimiter}${process.env.PATH ?? ''}`,
-            FAKE_DOCKER_LOG: path.join(dir, 'docker.jsonl'),
+            FAKE_DOCKER: 'down',
             BROWSER: opener,
             OPENED: path.join(dir, 'opened'),
             CI: '',
@@ -123,16 +123,13 @@ describe.skipIf(process.platform === 'win32').each(FIXTURES)('figma-qa report --
         await rm(dir, { recursive: true, force: true });
     });
 
-    it('starts no Docker, opens nothing, and writes the markdown summary beside the HTML report', async () => {
+    it('opens nothing and writes the markdown summary beside the HTML report', async () => {
         // Triage covers every category; Misconfigured is a harness error.
         const stdout = await inTerminal(fixture, ['report', 'SwatchTriage', 'Misconfigured', '--ci'], env);
         const root = fixtureDir(fixture);
 
         expect(stdout).toContain(`Markdown summary: ${CI_SUMMARY_FILE}`);
-        expect(stdout).toContain('WARN  Host Chromium (--ci without FIGMA_QA_BROWSER_WS): pixels are not comparable to CI.');
-        expect(await readFile(env.FAKE_DOCKER_LOG ?? '', 'utf8').catch(() => {
-                return '';
-            })).toBe('');
+        expect(stdout).toContain('WARN  Host Chromium (Docker is not running): pixels are not comparable to CI.');
         await new Promise((resolve) => {
             setTimeout(resolve, 1000);
         });
