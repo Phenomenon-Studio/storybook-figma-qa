@@ -350,8 +350,8 @@ async function run(root: string, options: Options, state: RunState): Promise<Ran
             return message(error);
         }
 
-        // Before the browser: an unwired project must not start the pinned image first. The Vitest project check
-        // needs Vitest's config, which reads the browser choice, so it waits for collect.
+        // An unwired project fails before Vitest loads. The Vitest project check needs Vitest's config, so it waits
+        // for collect.
         return addonBlocked(root);
     });
     if (blocked) {
@@ -361,20 +361,8 @@ async function run(root: string, options: Options, state: RunState): Promise<Ran
     if (options.refresh) {
         process.env[REFRESH_ENV] = '1';
     }
-    try {
-        const browser = await timed(state.timings, 'browser', () => {
-            return pickBrowser(root, { hostBrowser: options.hostBrowser });
-        });
-        if (browser.kind === 'image') {
-            process.env[BROWSER_WS_ENV] = browser.wsEndpoint;
-        } else {
-            delete process.env[BROWSER_WS_ENV];
-            state.hostBrowser = true;
-            state.warnings.push(`Host Chromium (${browser.reason}): pixels are not comparable to CI.`);
-        }
-    } catch (error) {
-        return failedRun(state, message(error));
-    }
+    // Set once collect found a story to run: a PR that reaches none never pulls the image.
+    delete process.env[BROWSER_WS_ENV];
 
     // `--json` keeps stdout for the summary: Vitest's output and anything plugins log go to stderr.
     // Redirect the stream, not `console.log`: Storybook writes its first-run telemetry notice
@@ -436,6 +424,16 @@ async function run(root: string, options: Options, state: RunState): Promise<Ran
                 return options.filters.length > 0
                     ? failedRun(state, noMatch)
                     : { summary: summaryOf(state, { warnings: [...state.warnings, 'No Figma stories found.'] }), results: [] };
+            }
+            // `figmaQa()`'s provider reads the endpoint when it opens the browser, inside `start`.
+            const browser = await timed(state.timings, 'browser', () => {
+                return pickBrowser(root, { hostBrowser: options.hostBrowser });
+            });
+            if (browser.kind === 'image') {
+                process.env[BROWSER_WS_ENV] = browser.wsEndpoint;
+            } else {
+                state.hostBrowser = true;
+                state.warnings.push(`Host Chromium (${browser.reason}): pixels are not comparable to CI.`);
             }
             await timed(state.timings, 'tests', () => {
                 return vitest.start(files);

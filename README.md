@@ -39,8 +39,8 @@ It never touches stories, components, tokens, the manager theme, other Vitest pr
 The one local command, aliased in a project's `package.json` as `"figma-report": "figma-qa report"` (`pnpm figma-report`). It never prompts and exits 0 (pass, approved or no code equivalent), 1 (a cell differs from Figma) or 2 (harness or setup error).
 
 1. **doctor**: the config loads; `.storybook/main` adds the kit and Vitest has the `figma-qa` project, else exit 2 pointing at `figma-qa init`.
-2. **browser**: with Docker running, `docker compose up --wait` starts `mcr.microsoft.com/playwright:v<project's playwright>-noble` (compose project `figma-qa`, Playwright server on `127.0.0.1:3100` behind a per-user secret path kept in `~/.cache/figma-qa/browser-token`, left running for the next run). Without Docker, or with `--host-browser`, the host's Chromium runs and the summary and report warn that pixels are not comparable to CI. Docker running but the image failing to start is exit 2.
-3. **collect**: story files from Storybook's `stories` globs are scanned as text; only files with a `figma` tag literal, or `tags` the scan can't read, are handed to Vitest.
+2. **collect**: story files from Storybook's `stories` globs are scanned as text; only files with a `figma` tag literal, or `tags` the scan can't read, are handed to Vitest.
+3. **browser**, only once collect found a story to run (a `--changed` PR that reaches none pulls nothing): with Docker running, `docker compose up --wait` starts `mcr.microsoft.com/playwright:v<project's playwright>-noble` (compose project `figma-qa`, Playwright server on `127.0.0.1:3100` behind a per-user secret path kept in `~/.cache/figma-qa/browser-token`, left running for the next run). Without Docker, or with `--host-browser`, the host's Chromium runs and the summary and report warn that pixels are not comparable to CI. Docker running but the image failing to start is exit 2.
 4. **tests**: Figma sync happens lazily per story.
 5. **report**: `figma-qa/.results/run.json` and `figma-qa/.results/report/`. From a terminal (stdout a TTY, no `CI`) the report opens with `$BROWSER` or the platform's opener; `--no-open` or `BROWSER=none` opens nothing. With `storybook dev` running, the "Figma diff" panel URL is printed.
 
@@ -84,7 +84,7 @@ FAIL  Swatch › Blocked: 0 pass, 4 fail, 0 approved, 2 missing
 WARN  Host Chromium (--host-browser): pixels are not comparable to CI.
 
 figma-qa report: 2 pass, 8 fail, 2 approved, 6 missing (exit 2)
-Timings: doctor 0.0 s, browser 0.0 s, collect 0.7 s, tests 2.4 s, report 0.0 s
+Timings: doctor 0.0 s, collect 0.7 s, browser 0.0 s, tests 2.4 s, report 0.0 s
 HTML report: figma-qa/.results/report/index.html
 ```
 
@@ -131,7 +131,7 @@ HTML report: figma-qa/.results/report/index.html
     ],
     "errors": [],
     "warnings": ["Host Chromium (--host-browser): pixels are not comparable to CI."],
-    "timings": { "doctor": 1, "browser": 0, "collect": 799, "tests": 2307, "report": 27 },
+    "timings": { "doctor": 1, "collect": 799, "browser": 0, "tests": 2307, "report": 27 },
     "panelUrl": null
 }
 ```

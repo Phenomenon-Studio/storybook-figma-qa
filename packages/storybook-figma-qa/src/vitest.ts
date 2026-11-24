@@ -18,8 +18,19 @@ const PAGE = { width: 1600, height: 1200 };
  * export scale and holds each matrix cell to its Figma variant (setup.ts).
  */
 export function figmaQa(): TestProjectInlineConfiguration {
-    // `figma-qa report` sets it before Vitest loads this config, in the same process.
-    const wsEndpoint = process.env[BROWSER_WS_ENV];
+    const provider = playwright({
+        contextOptions: { deviceScaleFactor: FIGMA_SCALE, viewport: PAGE },
+        // Read when the provider opens the browser, not here: `figma-qa report` starts the pinned image only once
+        // collect has found a story to run, after this config loaded. The image runs in a container: `<loopback>`
+        // tunnels its requests for Vitest's localhost server back through this process.
+        get connectOptions() {
+            const wsEndpoint = process.env[BROWSER_WS_ENV];
+
+            return wsEndpoint ? { wsEndpoint, exposeNetwork: '<loopback>' } : undefined;
+        },
+    });
+    // Vitest 5 prewarms host Chromium while the config loads, before the report knows which browser runs.
+    const { prewarm: _prewarm, ...lazyProvider } = provider as typeof provider & { prewarm?: unknown };
 
     return {
         extends: true,
@@ -39,12 +50,7 @@ export function figmaQa(): TestProjectInlineConfiguration {
                 enabled: true,
                 headless: true,
                 // Figma refs are 2x exports, so the page renders at the same device scale.
-                provider: playwright({
-                    contextOptions: { deviceScaleFactor: FIGMA_SCALE, viewport: PAGE },
-                    // The pinned browser runs in a container: `<loopback>` tunnels its requests for Vitest's
-                    // localhost server back through this process.
-                    ...(wsEndpoint ? { connectOptions: { wsEndpoint, exposeNetwork: '<loopback>' } } : {}),
-                }),
+                provider: lazyProvider,
                 instances: [{ browser: 'chromium' }],
                 screenshotFailures: false,
                 commands: { figmaEnsureSets, figmaPixelDiff, figmaSaveStoryResult },

@@ -26,6 +26,12 @@ const PLAYWRIGHT_BROWSERS: Record<string, string> =
               ),
           }
         : {};
+/** Where Playwright's browsers are installed, for the fake container's server while the CLI's are hidden. */
+const INSTALLED_BROWSERS =
+    process.env.PLAYWRIGHT_BROWSERS_PATH ??
+    (process.platform === 'darwin'
+        ? path.join(homedir(), 'Library/Caches/ms-playwright')
+        : path.join(process.env.XDG_CACHE_HOME ?? path.join(homedir(), '.cache'), 'ms-playwright'));
 const FIGMA_FILES = [
     'src/Glyph.figma.stories.tsx',
     'src/Misconfigured.figma.stories.tsx',
@@ -34,7 +40,7 @@ const FIGMA_FILES = [
     'src/SwatchToken.figma.stories.tsx',
     'src/SwatchTriage.figma.stories.tsx',
 ];
-const PHASES = ['doctor', 'browser', 'collect', 'tests', 'report'];
+const PHASES = ['doctor', 'collect', 'browser', 'tests', 'report'];
 
 function freePort(): Promise<number> {
     return new Promise((resolve, reject) => {
@@ -163,7 +169,10 @@ describe.each(FIXTURES)('figma-qa report picks a browser in fixtures/%s', (fixtu
     }
 
     function run(args: string[], mode: string) {
-        return runCli(fixture, ['report', 'swatch-figma--matrix', ...args, '--json'], { ...env, FAKE_DOCKER: mode });
+        // With Docker up the CLI sees no browsers of its own: a run that passes went through the image's server.
+        const hidden: Record<string, string> = mode === 'up' && !args.includes('--host-browser') ? { PLAYWRIGHT_BROWSERS_PATH: path.join(dir, 'no-browsers'), FAKE_DOCKER_BROWSERS: INSTALLED_BROWSERS } : {};
+
+        return runCli(fixture, ['report', 'swatch-figma--matrix', ...args, '--json'], { ...env, FAKE_DOCKER: mode, ...hidden });
     }
 
     it('starts the pinned image when Docker runs, and connects to it', async () => {
@@ -295,7 +304,7 @@ describe.skipIf(process.platform === 'win32').each(FIXTURES)('figma-qa report op
         const stdout = await inTerminal(fixture, ['report', 'swatch-figma--matrix', '--host-browser'], env);
 
         expect(stdout).toContain('WARN  Host Chromium (--host-browser): pixels are not comparable to CI.');
-        expect(stdout).toMatch(/Timings: doctor .* s, browser .* s, collect .* s, tests .* s, report .* s/);
+        expect(stdout).toMatch(/Timings: doctor .* s, collect .* s, browser .* s, tests .* s, report .* s/);
         expect(
             await until(async () => {
                 return (await opened()) !== null;

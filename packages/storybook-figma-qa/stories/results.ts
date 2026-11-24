@@ -181,7 +181,7 @@ export function runOf(
         stories,
         errors: [],
         warnings: [],
-        timings: { doctor: 40, browser: 1200, collect: 900, tests: 14_250 },
+        timings: { doctor: 40, collect: 900, browser: 1200, tests: 14_250 },
         panelUrl: null,
     };
 }

@@ -10,7 +10,7 @@ import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CI_SUMMARY_FILE, REPORT_DIR } from '../src/figma/types.ts';
 import { CI_MARKER } from '../src/node/ci-summary.ts';
-import { fixtureDir, FIXTURES, inTerminal, report } from './cli.ts';
+import { fixtureDir, FIXTURES, inTerminal, report, runCli } from './cli.ts';
 
 const execFileAsync = promisify(execFile);
 const FAKE_DOCKER = fileURLToPath(new URL('./fake-docker', import.meta.url));
@@ -86,6 +86,20 @@ describe.each(FIXTURES)('figma-qa report --changed in fixtures/%s', (fixture) =>
         expect(code).toBe(2);
         expect(summary.stories).toEqual([]);
         expect(summary.errors[0]).toContain('no-such-base');
+    });
+
+    it('starts no browser image when nothing is affected', async () => {
+        const log = path.join(dir, 'docker.jsonl');
+        const { code, stderr } = await runCli(fixture, ['report', '--changed', '--ci', '--json'], {
+            ...gitEnv,
+            PATH: `${FAKE_DOCKER}${path.delimiter}${process.env.PATH ?? ''}`,
+            FAKE_DOCKER_LOG: log,
+        });
+
+        expect(code, stderr).toBe(0);
+        expect(await readFile(log, 'utf8').catch(() => {
+                return '';
+            })).toBe('');
     });
 
     it('exits 0 with "no Figma stories affected" when nothing changed, in the --ci summary too', async () => {

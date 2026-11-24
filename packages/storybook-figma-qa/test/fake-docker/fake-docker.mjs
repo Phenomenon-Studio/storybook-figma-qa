@@ -2,7 +2,7 @@
 // `docker info` answers by mode; `docker compose … up --wait` reads the compose file from stdin and serves its port
 // with the project's own Playwright (`run-server`), so the report really connects to a remote browser.
 // Every call is appended to `FAKE_DOCKER_LOG` as JSON (args, then the compose file); the server's pid goes to
-// `FAKE_DOCKER_PID` for the test to stop.
+// `FAKE_DOCKER_PID` for the test to stop. `FAKE_DOCKER_BROWSERS` is the server's Playwright browsers path.
 import { spawn } from 'node:child_process';
 import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -51,6 +51,8 @@ const manifest = createRequire(path.join(process.cwd(), 'package.json')).resolve
 const server = spawn(process.execPath, [path.join(path.dirname(manifest), 'cli.js'), 'run-server', '--port', String(port), '--host', '127.0.0.1', '--path', serverPath], {
     detached: true,
     stdio: 'ignore',
+    // The "container" has its own browsers: with the host's hidden, a report passes only through this server.
+    env: process.env.FAKE_DOCKER_BROWSERS ? { ...process.env, PLAYWRIGHT_BROWSERS_PATH: process.env.FAKE_DOCKER_BROWSERS } : process.env,
 });
 server.unref();
 writeFileSync(process.env.FAKE_DOCKER_PID, String(server.pid));

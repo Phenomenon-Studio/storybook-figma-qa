@@ -368,7 +368,7 @@ export type FigmaRunSummary = {
 };
 
 /** A report's phases, in order. Figma sync happens lazily inside `tests`. */
-export const RUN_PHASES = ['doctor', 'browser', 'collect', 'tests', 'report'] as const;
+export const RUN_PHASES = ['doctor', 'collect', 'browser', 'tests', 'report'] as const;
 
 export type RunPhase = (typeof RUN_PHASES)[number];
 

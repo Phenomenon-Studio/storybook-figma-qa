@@ -70,7 +70,7 @@ export const Timings: Story = {
             [...timings.querySelectorAll('li')].map((item) => {
                 return item.textContent;
             })
-        ).toEqual(['doctor 0.0 s', 'browser 1.2 s', 'collect 0.9 s', 'tests 14.3 s']);
+        ).toEqual(['doctor 0.0 s', 'collect 0.9 s', 'browser 1.2 s', 'tests 14.3 s']);
     },
 };
 
