@@ -126,6 +126,9 @@ describe.each(FIXTURES)('figma-qa init on a clean copy of fixtures/%s', (fixture
         expect(result.stdout).toContain('write AGENTS.md: figma-qa rules block');
         expect(result.stdout).toContain('write CLAUDE.md: figma-qa rules block');
         expect(result.stdout).toContain(`run   ${SKILLS_ADD}`);
+        // The PR check is the repo's choice: init prints the caller, never writes it.
+        expect(result.stdout).toContain('todo  PR workflow: add .github/workflows/figma-qa.yml');
+        expect(result.stdout).toContain('uses: Phenomenon-Studio/storybook-figma-qa/.github/workflows/figma-qa.yml@v');
         expect(await snapshot(dir)).toEqual(before);
     });
 
@@ -190,6 +193,21 @@ describe.each(FIXTURES)('figma-qa init on a clean copy of fixtures/%s', (fixture
         expect(result.code, result.stderr).toBe(0);
         expect(result.stdout).not.toMatch(/^(write|run|edit) /m);
         expect(await snapshot(dir)).toEqual(before);
+    });
+
+    it('finds a caller of the kit workflow under any name', async () => {
+        const workflows = path.join(dir, '.github/workflows');
+        await mkdir(workflows, { recursive: true });
+        await writeFile(
+            path.join(workflows, 'design.yaml'),
+            'jobs:\n    figma-qa:\n        uses: Phenomenon-Studio/storybook-figma-qa/.github/workflows/figma-qa.yml@v1\n'
+        );
+
+        const result = await figmaQa(['init', '--dry-run']);
+
+        expect(result.code, result.stderr).toBe(0);
+        expect(result.stdout).toContain('ok    PR workflow: .github/workflows/design.yaml');
+        expect(result.stdout).not.toContain('todo  ');
     });
 });
 

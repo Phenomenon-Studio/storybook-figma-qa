@@ -10,7 +10,7 @@ import { glob } from 'tinyglobby';
 import { PACKAGE_NAME } from '../constants.ts';
 import { MAIN_FILES } from '../node/figma-project.ts';
 import { type MergeResult, mergeMain, mergePreview, mergeVitest, VITEST_SNIPPET } from '../node/merge.ts';
-import { REGISTRY_LINE, withRegistryLine, withRulesBlock } from '../node/project-text.ts';
+import { callerWorkflow, REGISTRY_LINE, usesKitWorkflow, withRegistryLine, withRulesBlock } from '../node/project-text.ts';
 
 type Options = { dryRun: boolean; next: boolean };
 
@@ -63,7 +63,7 @@ export async function init(args: string[]): Promise<number> {
     }
 }
 
-function line(status: 'ok' | 'write' | 'run' | 'edit' | 'plan', text: string) {
+function line(status: 'ok' | 'write' | 'run' | 'edit' | 'plan' | 'todo', text: string) {
     console.log(`${status.padEnd(5)} ${text}`);
 }
 
@@ -419,6 +419,32 @@ async function ensureSkills(root: string, options: Options, kitPending: boolean)
     });
 }
 
+/** The repo root, where GitHub reads workflows; the project itself outside a git repository. */
+function repoRoot(root: string): string {
+    const result = spawnSync('git', ['rev-parse', '--show-toplevel'], { cwd: root, encoding: 'utf8' });
+
+    return result.status === 0 ? result.stdout.trim() : root;
+}
+
+/**
+ * The PR check runs a token-holding job on every PR, so adding it is the repo's call: init only reports a caller it
+ * finds, or prints one to add.
+ */
+async function ensureWorkflow(root: string) {
+    const repo = repoRoot(root);
+    const files = await glob('.github/workflows/*.{yml,yaml}', { cwd: repo });
+    for (const file of files.sort()) {
+        if (usesKitWorkflow((await readText(path.join(repo, file))) ?? '')) {
+            line('ok', `PR workflow: ${file}`);
+
+            return;
+        }
+    }
+    const workingDirectory = path.relative(repo, root).split(path.sep).join('/') || '.';
+    line('todo', 'PR workflow: add .github/workflows/figma-qa.yml at the repo root, and a FIGMA_TOKEN repository secret:');
+    console.log(`\n${callerWorkflow({ kitVersion: await kitVersion(), workingDirectory })}`);
+}
+
 async function run(root: string, options: Options): Promise<number> {
     if (options.dryRun) {
         console.log('figma-qa init --dry-run: the plan; nothing is written or run');
@@ -435,6 +461,7 @@ async function run(root: string, options: Options): Promise<number> {
     await ensureScript(root, options);
     await ensureRules(root, options);
     await ensureSkills(root, options, kitPending);
+    await ensureWorkflow(root);
     if (manual.length > 0) {
         console.error(
             [

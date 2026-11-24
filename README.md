@@ -198,6 +198,19 @@ ok    .storybook/main.ts: kit in addons
 ok    vitest.config.ts: figmaQa() in test.projects
 write AGENTS.md: figma-qa rules block
 run   npx -y skills@1.9.0 add ./node_modules/@phenomenon-studio/storybook-figma-qa/skills --copy -y -a claude-code codex
+todo  PR workflow: add .github/workflows/figma-qa.yml at the repo root, and a FIGMA_TOKEN repository secret:
+
+name: Figma QA
+on: pull_request
+…
+jobs:
+    figma-qa:
+        uses: Phenomenon-Studio/storybook-figma-qa/.github/workflows/figma-qa.yml@v0
+        secrets:
+            FIGMA_TOKEN: ${{ secrets.FIGMA_TOKEN }}
+        with:
+            working-directory: fixtures/sb11
+
 figma-qa init: dry run, nothing written
 ```
 
@@ -208,8 +221,9 @@ Each line is one step:
 - **`edit`**: you make this change by hand. Init exits 2 after printing the snippet.
 - **`run`**: init runs the command.
 - **`plan`**: init would act, but can't yet (it waits on a step before it).
+- **`todo`**: yours to add when you want it; init never writes it and still exits 0. Only the PR workflow: the caller job follows, pinned to the kit's major, with `working-directory` when the project isn't the git root. Once any `.github/workflows/*.y{a,}ml` at the repo root calls the kit workflow, the line reads `ok    PR workflow: <file>`.
 
-A re-run on a set-up project prints only `ok` lines. If a config has a shape init won't edit, init prints `figma-qa init: one file needs this edit by hand, then re-run init:` and the exact snippet on stderr, then exits 2.
+A re-run on a set-up project prints only `ok` lines (and `todo` until the PR workflow exists). If a config has a shape init won't edit, init prints `figma-qa init: one file needs this edit by hand, then re-run init:` and the exact snippet on stderr, then exits 2.
 
 ### `figma-qa scaffold`
 
@@ -254,7 +268,7 @@ With `<file>` or `-`, it merges the script's JSON output and prints what changed
 
 ## PR workflow
 
-[`figma-qa.yml`](.github/workflows/figma-qa.yml) is a reusable workflow: on every pull request it runs `figma-qa report --ci --changed <base sha>` on the stories the PR reaches, keeps one sticky comment (the `--ci` summary plus links to the HTML report artifact and the job log) and uploads the report as the `figma-qa-report` artifact for 14 days. Exit 1 and 2 fail the job; it is not meant as a required check. A consumer repo adds:
+[`figma-qa.yml`](.github/workflows/figma-qa.yml) is a reusable workflow: on every pull request it runs `figma-qa report --ci --changed <base sha>` on the stories the PR reaches, keeps one sticky comment (the `--ci` summary plus links to the HTML report artifact and the job log) and uploads the report as the `figma-qa-report` artifact for 14 days. Exit 1 and 2 fail the job; it is not meant as a required check. `figma-qa init` prints the caller job for the project (`todo  PR workflow`); a consumer repo adds:
 
 ```yaml
 # .github/workflows/figma-qa.yml

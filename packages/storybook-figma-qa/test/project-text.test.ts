@@ -1,6 +1,13 @@
-// Pure logic: `figma-qa init`'s rules block and registry scope line.
+// Pure logic: `figma-qa init`'s rules block, registry scope line and PR workflow caller.
 import { describe, expect, it } from 'vitest';
-import { REGISTRY_LINE, RULES_BLOCK, withRegistryLine, withRulesBlock } from '../src/node/project-text.ts';
+import {
+    callerWorkflow,
+    REGISTRY_LINE,
+    RULES_BLOCK,
+    usesKitWorkflow,
+    withRegistryLine,
+    withRulesBlock,
+} from '../src/node/project-text.ts';
 
 describe('withRulesBlock', () => {
     it('writes the block alone into a missing or empty file', () => {
@@ -34,5 +41,29 @@ describe('withRegistryLine', () => {
         expect(withRegistryLine(present)).toBe(present);
         expect(withRegistryLine('@phenomenon-studio:registry=https://registry.npmjs.org\n')).toBe(`${REGISTRY_LINE}\n`);
         expect(withRegistryLine('a=1\r\n@phenomenon-studio:registry=x\r\n')).toBe(`a=1\r\n${REGISTRY_LINE}\r\n`);
+    });
+});
+
+describe('callerWorkflow', () => {
+    it('pins the kit major and passes FIGMA_TOKEN explicitly', () => {
+        const caller = callerWorkflow({ kitVersion: '1.4.2', workingDirectory: '.' });
+
+        expect(caller).toContain('uses: Phenomenon-Studio/storybook-figma-qa/.github/workflows/figma-qa.yml@v1\n');
+        expect(caller).toContain('FIGMA_TOKEN: ${{ secrets.FIGMA_TOKEN }}');
+        expect(caller).toContain('pull-requests: write');
+        expect(caller).not.toContain('working-directory');
+        expect(usesKitWorkflow(caller)).toBe(true);
+    });
+
+    it('names the project when it is not the repo root', () => {
+        const caller = callerWorkflow({ kitVersion: '0.3.0-next.1', workingDirectory: 'apps/web' });
+
+        expect(caller).toContain('figma-qa.yml@v0\n');
+        expect(caller).toMatch(/with:\n {12}working-directory: apps\/web\n/);
+    });
+
+    it('tells a caller of the kit workflow from other workflows', () => {
+        expect(usesKitWorkflow('jobs:\n  ci:\n    runs-on: ubuntu-latest\n')).toBe(false);
+        expect(usesKitWorkflow("uses: 'Phenomenon-Studio/storybook-figma-qa/.github/workflows/figma-qa.yml@main'")).toBe(true);
     });
 });

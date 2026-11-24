@@ -54,3 +54,35 @@ export function withRegistryLine(source: string | null): string {
 
     return `${[...lines, REGISTRY_LINE].join('\n')}\n`;
 }
+
+/** The kit's reusable PR workflow, as a caller's `uses:` names it (before `@ref`). */
+const KIT_WORKFLOW = 'Phenomenon-Studio/storybook-figma-qa/.github/workflows/figma-qa.yml';
+
+/** Whether a workflow file calls the kit's PR workflow, at any ref. */
+export function usesKitWorkflow(source: string): boolean {
+    return source.includes(`${KIT_WORKFLOW}@`);
+}
+
+/**
+ * The consumer's caller job for `.github/workflows/figma-qa.yml`, pinned to the kit's own major (the `vN` tag publish
+ * moves). `workingDirectory` is the project relative to the repo root: `.` unless the kit lives in a monorepo package.
+ */
+export function callerWorkflow({ kitVersion, workingDirectory }: { kitVersion: string; workingDirectory: string }): string {
+    const major = kitVersion.split('.')[0];
+
+    return [
+        'name: Figma QA',
+        'on: pull_request',
+        'permissions:',
+        '    contents: read',
+        '    packages: read',
+        '    pull-requests: write',
+        'jobs:',
+        '    figma-qa:',
+        `        uses: ${KIT_WORKFLOW}@v${major}`,
+        '        secrets:',
+        '            FIGMA_TOKEN: ${{ secrets.FIGMA_TOKEN }}',
+        ...(workingDirectory === '.' ? [] : ['        with:', `            working-directory: ${workingDirectory}`]),
+        '',
+    ].join('\n');
+}
