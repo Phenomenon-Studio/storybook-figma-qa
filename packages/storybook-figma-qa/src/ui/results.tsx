@@ -2,7 +2,15 @@
 // Classic JSX: these render in Storybook 10's manager, which shares `react` but not `react/jsx-runtime`.
 // What the panel and the HTML report both show for a story's results. Static markup (no state, no effects), so the
 // report renders it on the server with the same components; the verdict comes from verdict.ts in both.
-import type { CellCounts, CellStatus, FigmaBlockResult, FigmaCellResult, FigmaIssue, StoryVerdict } from '../figma/types.ts';
+import type {
+    CellCounts,
+    CellStatus,
+    FigmaBlockResult,
+    FigmaCellResult,
+    FigmaIssue,
+    StoryVerdict,
+    TriageCategory,
+} from '../figma/types.ts';
 import React from 'react';
 import { countCells, storyVerdict } from '../figma/verdict.ts';
 import { diffSummary } from './diff-summary.ts';
@@ -21,6 +29,12 @@ const STATUS_LABEL: Record<CellStatus, string> = {
     fail: 'Fail',
     approved: 'Approved',
     missing: 'No code',
+};
+
+const TRIAGE_LABEL: Record<TriageCategory, string> = {
+    harness: 'Harness: not a design diff',
+    token: 'Token: another kit token',
+    value: 'Value: spec number off',
 };
 
 export function VerdictBadge({ verdict }: { verdict: StoryVerdict }) {
@@ -131,6 +145,7 @@ function Cell({ cell, fileUrl }: { cell: FigmaCellResult; fileUrl: FileUrl }) {
                         {STATUS_LABEL[cell.status]}
                     </span>
                     <span className="fqa-cell__name">{cell.variant.name}</span>
+                    {cell.triage && <span className="fqa-tag">{TRIAGE_LABEL[cell.triage]}</span>}
                     {image.ratio !== null && (
                         <span className="fqa-muted">
                             {percent(image.ratio)} pixels differ (allowed {percent(image.maxRatio)})

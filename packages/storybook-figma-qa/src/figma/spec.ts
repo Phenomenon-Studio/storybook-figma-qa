@@ -83,7 +83,7 @@ function colorDiff(actual: Rgba, expected: Rgba, back: Backdrop): boolean {
 function colorValue(color: Rgba): FigmaIssueValue {
     const text = toHsl(color);
 
-    return { text, note: nearestToken(color, CHANNEL), swatch: text };
+    return { text, note: nearestToken(color, CHANNEL), swatch: text, tokens: tokensAt(color, CHANNEL) };
 }
 
 /** `ΔEOK 0.684 · 0 RGB · α +0.88`: the seen difference first, then the declared one (largest channel, alpha). */
@@ -1075,7 +1075,8 @@ function annotateBindings(issues: FigmaIssue[], spec: FigmaSpec): FigmaIssue[] {
 
             return {
                 ...issue,
-                expected: { ...issue.expected, note },
+                // The token Figma's variable names is the one the story owes, whatever else shares its value.
+                expected: { ...issue.expected, note, tokens: token ? [token] : issue.expected.tokens },
                 actual:
                     received && token
                         ? {
@@ -1248,8 +1249,13 @@ function tokenIssues(
         out.push({
             element: paint.element,
             property: paint.property,
-            expected: { text: toHsl(paint.figma), note, swatch: toHsl(paint.figma) },
-            actual: { text: toHsl(story), note: used ? `= ${used}` : 'not a kit token', swatch: toHsl(story) },
+            expected: { text: toHsl(paint.figma), note, swatch: toHsl(paint.figma), tokens: [token] },
+            actual: {
+                text: toHsl(story),
+                note: used ? `= ${used}` : 'not a kit token',
+                swatch: toHsl(story),
+                tokens: used ? [used] : [],
+            },
             tolerance: `painted with ${token}`,
         });
     }
@@ -1320,11 +1326,18 @@ export function figmaSpecMismatches(root: Element, spec: FigmaSpec): FigmaIssue[
         const corners = (values: number[]) => {
             return new Set(values).size === 1 ? px(values[0] ?? 0) : values.map(px).join(' ');
         };
+        const differences = radius.map((value, index) => {
+            return signed(value - (figmaRadius[index] ?? 0));
+        });
+        const lengths = differences.map((difference) => {
+            return `${difference}px`;
+        });
         out.push({
             element: component,
             property: 'Corner radius',
             expected: { text: corners(figmaRadius) },
             actual: { text: corners(radius) },
+            delta: new Set(lengths).size === 1 ? lengths[0] : lengths.join(' '),
             tolerance: tolerance(),
         });
     }

@@ -10,6 +10,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { BROWSER_WS_ENV, REFRESH_ENV, STORIES_KEY } from '../constants.ts';
 import { REPORT_DIR, RESULTS_DIR, resultsFile, RUN_FILE } from '../figma/types.ts';
+import { failingCells } from '../figma/triage.ts';
 import { countCells, noCells, runExitCode, storyVerdict } from '../figma/verdict.ts';
 import { pickBrowser } from '../node/browser.ts';
 import { figmaToken } from '../node/figma-api.ts';
@@ -131,6 +132,7 @@ async function summarize(
                 cells,
                 error,
                 results: result && storyId ? resultsFile(storyId) : null,
+                failing: failingCells(result?.blocks ?? []),
             });
         }
     }
@@ -201,6 +203,16 @@ function printHuman(summary: FigmaRunSummary): void {
         const counts = `${pass} pass, ${fail} fail, ${approved} approved, ${missing} missing`;
         const detail = story.error ? `error: ${story.error}` : counts;
         console.log(`${story.verdict.toUpperCase().padEnd(5)} ${story.title} › ${story.name}: ${detail}`);
+        for (const cell of story.failing) {
+            const triage = cell.triage ? ` [${cell.triage}]` : '';
+            console.log(`      ✗ ${cell.block} · ${cell.variant}${triage}`);
+            if (cell.approved) {
+                // Deliberate? Paste into that block's `approved` and say why; a fix needs no entry.
+                console.log(`        approved: ${cell.approved},`);
+            } else {
+                console.log('        not measured: fix the capture, no approval can cover it');
+            }
+        }
     }
     for (const error of summary.errors) {
         console.log(`ERROR ${error}`);

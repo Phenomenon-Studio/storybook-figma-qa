@@ -21,6 +21,7 @@ import { projectConfig } from './figma/project.ts';
 import { STORIES_KEY } from './constants.ts';
 import { LOAD_SETS_HOOK, resolveStory, SKIP_HOOK } from './figma/story.ts';
 import { globToRegExp } from './figma/story-scan.ts';
+import { triageCell } from './figma/triage.ts';
 import { FIGMA_SCALE, FIGMA_TAG, figmaIssueText, refPng } from './figma/types.ts';
 
 declare module 'vitest/browser' {
@@ -233,6 +234,7 @@ async function checkCells(storyId: string, story: FigmaStory, resolved: Resolved
                     variant: variantRef,
                     status: 'missing',
                     approval: null,
+                    triage: null,
                     spec: { mismatches: [], ignored: [] },
                     image: {
                         mismatchedPixels: null,
@@ -285,20 +287,23 @@ async function checkCells(storyId: string, story: FigmaStory, resolved: Resolved
             } else if (approval) {
                 status = 'approved';
             }
+            const spec = { mismatches, ignored: all.filter(isIgnored) };
+            const image = {
+                mismatchedPixels: pixels,
+                ratio,
+                maxRatio,
+                error,
+                classes: view.covered ? null : diff.classes,
+                pair: view.covered ? null : diff.pair,
+                blob,
+            };
             cells.push({
                 variant: variantRef,
                 status,
                 approval,
-                spec: { mismatches, ignored: all.filter(isIgnored) },
-                image: {
-                    mismatchedPixels: pixels,
-                    ratio,
-                    maxRatio,
-                    error,
-                    classes: view.covered ? null : diff.classes,
-                    pair: view.covered ? null : diff.pair,
-                    blob,
-                },
+                triage: triageCell({ status, spec, image }),
+                spec,
+                image,
                 files: diff.files,
             });
         }

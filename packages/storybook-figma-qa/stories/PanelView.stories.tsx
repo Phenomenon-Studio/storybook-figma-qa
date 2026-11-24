@@ -2,7 +2,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, within } from 'storybook/test';
 import { PanelView } from '../src/ui/panel-view.tsx';
-import { APPROVED, FAIL, FIGMA_CHANGED, fileUrl, HARNESS_ERROR, PASS, RENDER_FAILED, runOf } from './results.ts';
+import { APPROVED, FAIL, FIGMA_CHANGED, fileUrl, HARNESS_ERROR, PASS, RENDER_FAILED, runOf, TRIAGED } from './results.ts';
 
 const meta = {
     title: 'Panel',
@@ -45,6 +45,24 @@ export const Approved: Story = {
         // Approved cells stay closed; their evidence is one click away.
         await userEvent.click(canvas.getByText('Size=Small, Tone=Neutral'));
         await expect(canvas.getByText(/WCAG 1\.4\.11/)).toBeVisible();
+    },
+};
+
+/** Each failing cell names its triage category where code can tell; the rest carry none. */
+export const Triaged: Story = {
+    args: { storyId: TRIAGED.storyId, result: TRIAGED },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const tags = [...canvasElement.querySelectorAll('.fqa-cell')].map((cell) => {
+            return cell.querySelector('.fqa-tag')?.textContent ?? null;
+        });
+        await expect(tags).toEqual([
+            'Harness: not a design diff',
+            'Token: another kit token',
+            'Value: spec number off',
+            null,
+        ]);
+        await expect(canvas.getByText(/Capture blocked: div\.blocker covers the cell/)).toBeVisible();
     },
 };
 

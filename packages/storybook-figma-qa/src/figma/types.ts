@@ -187,8 +187,12 @@ export function variantSlug(nodeId: string): string {
     return nodeId.replace(':', '-');
 }
 
-/** One side of a spec issue. `note`: nearest kit token for colours. `swatch`: CSS colour to paint next to it. */
-export type FigmaIssueValue = { text: string; note?: string; swatch?: string };
+/**
+ * One side of a spec issue. `note`: nearest kit token for colours. `swatch`: CSS colour to paint next to it. `tokens`:
+ * the kit tokens this colour is (Figma's side: the token its variable names, else those equal by value; the story's:
+ * those equal by value, or the one it is painted with); triage reads it (triage.ts).
+ */
+export type FigmaIssueValue = { text: string; note?: string; swatch?: string; tokens?: string[] };
 
 /**
  * One spec property that differs from Figma, e.g. element `Text "FAN 1"`, property `Font size`, expected `12px`,
@@ -224,6 +228,8 @@ export type FigmaCellResult = {
     status: 'pass' | 'fail' | 'approved' | 'missing';
     /** The FigmaApproval reason, when one matches. */
     approval: string | null;
+    /** Why a `fail` cell fails, where code can tell (triage.ts); null otherwise and for every other status. */
+    triage: TriageCategory | null;
     spec: { mismatches: FigmaIssue[]; ignored: FigmaIssue[] };
     image: {
         /** null when the comparator could not measure (e.g. sizes differ). */
@@ -301,6 +307,25 @@ export function figmaIssueText(issue: FigmaIssue): string {
     return `${issue.element} · ${issue.property}: story ${issue.actual.text} ≠ Figma ${issue.expected.text} (${delta}allowed ${issue.tolerance})`;
 }
 
+/**
+ * A failing cell's deterministic triage. `harness`: the cell couldn't be measured (capture blocked, sizes differ): not
+ * a design verdict. `token`: a colour is another kit token than Figma's. `value`: a spec number is off.
+ */
+export type TriageCategory = 'harness' | 'token' | 'value';
+
+/** A `fail` cell as the CLI prints it: its triage and a paste-ready entry for its block's `approved`. */
+export type FailingCell = {
+    /** The matrix block's design entry name. */
+    block: string;
+    variant: string;
+    triage: TriageCategory | null;
+    /**
+     * A `FigmaApproval` literal matching this variant, reason left to fill. null for `harness`: no approval covers a
+     * cell that couldn't be measured.
+     */
+    approved: string | null;
+};
+
 export type CellStatus = FigmaCellResult['status'];
 export type CellCounts = Record<CellStatus, number>;
 
@@ -317,6 +342,7 @@ export type FigmaStorySummary = {
     error: string | null;
     /** Per-story results JSON, relative to the project root. */
     results: string | null;
+    failing: FailingCell[];
 };
 
 /** One run's outcome: printed by `report --json`, written to `RUN_FILE`. The panel and the HTML report render it. */

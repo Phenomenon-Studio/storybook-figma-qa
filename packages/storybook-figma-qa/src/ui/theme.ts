@@ -35,6 +35,8 @@ export const FIGMA_QA_CSS = `
 .fqa [data-tone='error'] { --tone: var(--error); }
 .fqa-badge { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: 999px;
     border: 1px solid var(--tone); color: var(--tone); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.fqa-tag { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px;
+    background: var(--raised); color: var(--soft); font-size: 12px; white-space: nowrap; }
 .fqa-counts { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; padding: 0; list-style: none; color: var(--soft); font-size: 12px; }
 .fqa-counts b { color: var(--tone); font-weight: 600; }
 

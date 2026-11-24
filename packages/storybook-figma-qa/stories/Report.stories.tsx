@@ -4,7 +4,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, within } from 'storybook/test';
 import { PanelView } from '../src/ui/panel-view.tsx';
 import { ReportBody } from '../src/ui/report-page.tsx';
-import { ALL, FAIL, FIGMA_CHANGED, fileUrl, PASS, RENDER_FAILED, runOf } from './results.ts';
+import { ALL, FAIL, FIGMA_CHANGED, fileUrl, PASS, RENDER_FAILED, runOf, TRIAGED } from './results.ts';
 
 const meta = {
     title: 'Report',
@@ -78,6 +78,17 @@ export const Fails: Story = {
     args: { run: runOf([PASS, FAIL, FIGMA_CHANGED]), results: [PASS, FAIL, FIGMA_CHANGED] },
     play: async ({ canvasElement }) => {
         await expect(within(canvasElement).getByText('Some cells differ from Figma.')).toBeVisible();
+    },
+};
+
+/** The report shows the same triage categories as the panel. */
+export const Triaged: Story = {
+    args: { run: runOf([TRIAGED]), results: [TRIAGED] },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        await expect(canvas.getByText('Harness: not a design diff')).toBeVisible();
+        await expect(canvas.getByText('Token: another kit token')).toBeVisible();
+        await expect(canvas.getByText('Value: spec number off')).toBeVisible();
     },
 };
 

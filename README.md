@@ -44,6 +44,8 @@ The one local command, aliased in a project's `package.json` as `"figma-report":
 4. **tests**: Figma sync happens lazily per story.
 5. **report**: `figma-qa/.results/run.json` and `figma-qa/.results/report/`. From a terminal (stdout a TTY, no `CI`) the report opens with `$BROWSER` or the platform's opener; `--no-open` or `BROWSER=none` opens nothing. With `storybook dev` running, the "Figma diff" panel URL is printed.
 
+Each `fail` cell is triaged where code can tell, in its results JSON (`triage`), the panel and the report: `harness` (the image couldn't be measured: capture blocked, sizes differ; not a design verdict), `token` (a colour is another kit token than the one Figma names or equals by value; any other differing row is a spec number), `value` (every differing row is a spec number: size, radius, spacing, type), otherwise none. Under each failing cell the summary prints, and `--json` lists in the story's `failing`, an entry to paste into that block's `approved` with a reason; nothing rewrites story files.
+
 Positional filters intersect the scanned files: a filter with `*`, `?` or `--` is a story-id glob (`'swatch-figma--*'`, other stories in a collected file are skipped), anything else a component name, matched against the meta `component`, the title or one of its segments, or the file name (`Swatch`, `Swatch.figma`). No match is exit 2. `--json` prints the summary, with `files`, per-phase `timings` (ms) and `panelUrl`, and nothing else on stdout.
 
 ## Figma variables

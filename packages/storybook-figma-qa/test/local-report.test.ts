@@ -33,6 +33,7 @@ const FIGMA_FILES = [
     'src/Swatch.figma.stories.tsx',
     'src/SwatchDrift.figma.stories.tsx',
     'src/SwatchToken.figma.stories.tsx',
+    'src/SwatchTriage.figma.stories.tsx',
 ];
 const PHASES = ['doctor', 'browser', 'collect', 'tests', 'report'];
 
@@ -75,7 +76,7 @@ describe.each(FIXTURES)('figma-qa report collects and filters in fixtures/%s', (
 
         // Button.stories.tsx has no figma tag; Glyph's tags are a same-file const.
         expect([...summary.files].sort()).toEqual(FIGMA_FILES);
-        expect(summary.stories).toHaveLength(6);
+        expect(summary.stories).toHaveLength(8);
         expect(summary.exitCode).toBe(2);
         expect(Object.keys(summary.timings)).toEqual(PHASES);
         for (const phase of PHASES) {
@@ -95,6 +96,7 @@ describe.each(FIXTURES)('figma-qa report collects and filters in fixtures/%s', (
             'src/Swatch.figma.stories.tsx',
             'src/SwatchDrift.figma.stories.tsx',
             'src/SwatchToken.figma.stories.tsx',
+            'src/SwatchTriage.figma.stories.tsx',
         ]);
     });
 

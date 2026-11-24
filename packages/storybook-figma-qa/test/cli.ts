@@ -56,7 +56,14 @@ export type Summary = {
     hostBrowser: boolean;
     cells: Cells;
     files: string[];
-    stories: { storyId: string; verdict: string; cells: Cells; error: string | null; results: string | null }[];
+    stories: {
+        storyId: string;
+        verdict: string;
+        cells: Cells;
+        error: string | null;
+        results: string | null;
+        failing: { block: string; variant: string; triage: string | null; approved: string | null }[];
+    }[];
     errors: string[];
     warnings: string[];
     timings: Record<string, number>;
@@ -65,7 +72,14 @@ export type Summary = {
 export type StoryResult = {
     error: string | null;
     warnings: string[];
-    blocks: { cells: { variant: { name: string }; status: string; approval: string | null }[] }[];
+    blocks: {
+        cells: {
+            variant: { name: string; props: Record<string, string> };
+            status: string;
+            approval: string | null;
+            triage: string | null;
+        }[];
+    }[];
 };
 
 /**

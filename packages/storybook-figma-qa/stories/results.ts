@@ -2,6 +2,7 @@
 // (fixtures/sb11, Swatch), served from `stories/images`.
 import type { FigmaCellResult, FigmaRunSummary, FigmaStorySummary, FigmaStoryResult } from '../src/figma/types.ts';
 import { resultsFile } from '../src/figma/types.ts';
+import { failingCells } from '../src/figma/triage.ts';
 import { countCells, runExitCode, storyVerdict } from '../src/figma/verdict.ts';
 
 const SET_URL = 'https://www.figma.com/design/FIXTUREKIT/Fixture-UI-kit?node-id=10-0';
@@ -20,6 +21,7 @@ function cell(status: FigmaCellResult['status'], tone: string, extra: Partial<Fi
         variant: { id: `10:${tone}`, name, props: { Size: 'Small', Tone: tone } },
         status,
         approval: null,
+        triage: null,
         spec: { mismatches: [], ignored: [] },
         image: {
             mismatchedPixels: 0,
@@ -109,6 +111,25 @@ export const FIGMA_CHANGED = story('swatch--figma-changed', 'Figma changed', [ce
     warnings: [`Figma changed since ${SET_URL} was synced (version 1 → 2): run \`figma-qa report --refresh\` to adopt it.`],
 });
 
+/** One failing cell per triage category, and one that code can't categorise. */
+export const TRIAGED = story('swatch--triaged', 'Triaged', [
+    cell('fail', 'Brand', {
+        triage: 'harness',
+        image: {
+            ...differs.image!,
+            mismatchedPixels: null,
+            ratio: null,
+            error: 'Capture blocked: div.blocker covers the cell. Harness issue, not a design diff.',
+            classes: null,
+            pair: null,
+            blob: null,
+        },
+    }),
+    cell('fail', 'Neutral', { ...differs, triage: 'token' }),
+    cell('fail', 'Accent', { ...differs, triage: 'value' }),
+    cell('fail', 'Danger', differs),
+]);
+
 export const ALL = [PASS, FAIL, APPROVED, HARNESS_ERROR, FIGMA_CHANGED];
 
 /** A story that failed to render: it wrote no results, only the run summary knows it. */
@@ -121,6 +142,7 @@ export const RENDER_FAILED: FigmaStorySummary = {
     cells: countCells([]),
     error: 'Story failed before the Figma checks: Cannot read properties of undefined (reading "tone")',
     results: null,
+    failing: [],
 };
 
 /** A run over `results` (plus stories that wrote none), summarized as the CLI does (verdict.ts). */
@@ -141,6 +163,7 @@ export function runOf(
             cells,
             error: result.error,
             results: resultsFile(result.storyId),
+            failing: failingCells(result.blocks),
         };
     });
     const stories = [...written, ...unwritten];
