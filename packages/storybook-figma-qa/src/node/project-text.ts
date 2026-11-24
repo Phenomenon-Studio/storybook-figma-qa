@@ -12,7 +12,8 @@ export const RULES_BLOCK = [
     'Written by `figma-qa init`, which rewrites everything between these markers.',
     '',
     `- Figma stories (\`${FIGMA_TAG}\` tag, \`<Component>.figma.stories.tsx\`) hold components to the Figma UI kit; each links its component sets once, in \`parameters.design\`.`,
-    '- Check them with `pnpm figma-report [Component]` (`figma-qa report`): exit 0 pass, 1 differs from Figma, 2 setup error. Agents use the `figma-qa` skill and `--json`.',
+    '- Check them with `pnpm figma-report [Component]` (`figma-qa report`): exit 0 pass, 1 differs from Figma, 2 setup error.',
+    '- Agent skills: `figma-qa` runs the report and triages failing cells; `figma-qa-scaffold` finishes a story `figma-qa scaffold` wrote; `figma-qa-variables` names the Figma variables the report calls unnamed.',
     '- Setup problems: `figma-qa doctor`. Refs under `figma-qa/__refs__` are committed and written by the CLI, never by hand.',
     RULES_END,
 ].join('\n');

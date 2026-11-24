@@ -12,6 +12,9 @@ import { type Fixture, fixtureDir, FIXTURES, KIT_BIN, runIn } from './cli.ts';
 
 const KIT = '@phenomenon-studio/storybook-figma-qa';
 const SKILLS_ADD = `npx -y skills@1.9.0 add ./node_modules/${KIT}/skills --copy -y -a claude-code codex`;
+const SKILLS_SOURCE = path.join(import.meta.dirname, '../skills');
+/** Every file the kit ships under `skills/`, sorted as `changedFiles` sorts. */
+const SKILL_FILES = (await glob('**/*', { cwd: SKILLS_SOURCE, dot: true })).sort();
 /** The skills CLI fetches from npm on first install. */
 const INSTALL_TIMEOUT = 300_000;
 
@@ -135,8 +138,11 @@ describe.each(FIXTURES)('figma-qa init on a clean copy of fixtures/%s', (fixture
 
             expect(result.code, result.stderr).toBe(0);
             expect(changedFiles(before, await snapshot(dir))).toEqual([
-                '.agents/skills/figma-qa/SKILL.md',
-                '.claude/skills/figma-qa/SKILL.md',
+                ...['.agents', '.claude'].flatMap((agent) => {
+                    return SKILL_FILES.map((file) => {
+                        return `${agent}/skills/${file}`;
+                    });
+                }),
                 '.npmrc',
                 '.storybook/main.ts',
                 '.storybook/preview.ts',
@@ -158,8 +164,14 @@ describe.each(FIXTURES)('figma-qa init on a clean copy of fixtures/%s', (fixture
             expect(vitest).toContain("name: 'storybook'");
             expect(vitest).toMatch(/figmaQa\(\)\]/);
             expect(JSON.parse(await read('package.json')).scripts['figma-report']).toBe('figma-qa report');
+            for (const file of SKILL_FILES) {
+                const kit = await readFile(path.join(SKILLS_SOURCE, file), 'utf8');
+                expect(await read(`.agents/skills/${file}`)).toBe(kit);
+                expect(await read(`.claude/skills/${file}`)).toBe(kit);
+            }
+            const fromKit = { source: `./node_modules/${KIT}/skills` };
             expect(JSON.parse(await read('skills-lock.json'))).toMatchObject({
-                skills: { 'figma-qa': { source: `./node_modules/${KIT}/skills` } },
+                skills: { 'figma-qa': fromKit, 'figma-qa-scaffold': fromKit, 'figma-qa-variables': fromKit },
             });
 
             const doctor = await figmaQa(['doctor']);
