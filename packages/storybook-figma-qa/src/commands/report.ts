@@ -5,9 +5,10 @@ import type { TestModule } from 'vitest/node';
 import type { FigmaCellResult, FigmaStoryResult } from '../figma/types.ts';
 import { rm } from 'node:fs/promises';
 import path from 'node:path';
-import { FIGMA_PROJECT } from '../constants.ts';
+import { FIGMA_PROJECT, REFRESH_ENV } from '../constants.ts';
 import { RESULTS_DIR, resultsFile } from '../figma/types.ts';
-import { readJson } from '../node/commands.ts';
+import { figmaToken } from '../node/figma-api.ts';
+import { readJson } from '../node/json.ts';
 
 type Status = FigmaCellResult['status'];
 
@@ -30,15 +31,19 @@ export type ReportSummary = {
     stories: StorySummary[];
     /** Errors outside any story: unloadable story files, unhandled errors, a missing Figma project. */
     errors: string[];
+    /** Stories' warnings, deduplicated: never change the exit code. */
+    warnings: string[];
 };
 
-type Options = { json: boolean; filters: string[] };
+type Options = { json: boolean; refresh: boolean; filters: string[] };
 
 function parseArgs(argv: string[]): Options | string {
-    const options: Options = { json: false, filters: [] };
+    const options: Options = { json: false, refresh: false, filters: [] };
     for (const arg of argv) {
         if (arg === '--json') {
             options.json = true;
+        } else if (arg === '--refresh') {
+            options.refresh = true;
         } else if (arg.startsWith('-')) {
             return `unknown option ${arg}`;
         } else {
@@ -58,12 +63,23 @@ async function readResult(root: string, storyId: string): Promise<FigmaStoryResu
     return readJson<FigmaStoryResult>(path.join(root, resultsFile(storyId)));
 }
 
+function failed(error: string): ReportSummary {
+    return { exitCode: 2, cells: noCells(), stories: [], errors: [error], warnings: [] };
+}
+
 function message(error: unknown): string {
     return (error as { message?: string })?.message ?? String(error);
 }
 
 async function summarize(root: string, modules: readonly TestModule[], unhandled: readonly unknown[]) {
-    const summary: ReportSummary = { exitCode: 0, cells: noCells(), stories: [], errors: unhandled.map(message) };
+    const summary: ReportSummary = {
+        exitCode: 0,
+        cells: noCells(),
+        stories: [],
+        errors: unhandled.map(message),
+        warnings: [],
+    };
+    const warnings = new Set<string>();
     for (const module of modules) {
         const file = path.relative(root, module.moduleId);
         for (const error of module.errors()) {
@@ -86,6 +102,9 @@ async function summarize(root: string, modules: readonly TestModule[], unhandled
                 error: result?.error ?? null,
                 results: result && storyId ? resultsFile(storyId) : null,
             };
+            for (const warning of result?.warnings ?? []) {
+                warnings.add(warning);
+            }
             const cells = result?.blocks.flatMap((block) => {
                 return block.cells;
             });
@@ -106,6 +125,7 @@ async function summarize(root: string, modules: readonly TestModule[], unhandled
             summary.stories.push(story);
         }
     }
+    summary.warnings = [...warnings];
     const verdicts = summary.stories.map((story) => {
         return story.verdict;
     });
@@ -128,18 +148,20 @@ function printHuman(summary: ReportSummary): void {
     for (const error of summary.errors) {
         console.log(`ERROR ${error}`);
     }
+    for (const warning of summary.warnings) {
+        console.log(`WARN  ${warning}`);
+    }
     const { pass, fail, approved, missing } = summary.cells;
     console.log(
         `\nfigma-qa report: ${pass} pass, ${fail} fail, ${approved} approved, ${missing} missing (exit ${summary.exitCode})`
     );
 }
 
-export async function report(argv: string[]): Promise<number> {
-    const options = parseArgs(argv);
-    if (typeof options === 'string') {
-        console.error(`figma-qa report: ${options}`);
-
-        return 2;
+/** Runs the Figma Vitest project and summarizes what it wrote. */
+async function run(options: Options): Promise<ReportSummary> {
+    // The browser commands run in this process: sync.ts reads the flag from here.
+    if (options.refresh) {
+        process.env[REFRESH_ENV] = '1';
     }
     const root = process.cwd();
     // Only this run's output counts: stale results would mask a story that no longer writes any.
@@ -156,7 +178,7 @@ export async function report(argv: string[]): Promise<number> {
     try {
         const { startVitest } = await import('vitest/node');
         // Filled by the reporter at the end of the run.
-        const run: { summary?: Promise<ReportSummary> } = {};
+        const result: { summary?: Promise<ReportSummary> } = {};
         const vitest = await startVitest(
             'test',
             options.filters,
@@ -167,7 +189,7 @@ export async function report(argv: string[]): Promise<number> {
                     ...(options.json ? [] : ['default' as const]),
                     {
                         onTestRunEnd: (modules, unhandled) => {
-                            run.summary = summarize(root, modules, unhandled);
+                            result.summary = summarize(root, modules, unhandled);
                         },
                     },
                 ],
@@ -176,17 +198,27 @@ export async function report(argv: string[]): Promise<number> {
             { stdout: options.json ? process.stderr : process.stdout, stderr: process.stderr }
         );
         await vitest.close();
-        summary = (await run.summary) ?? {
-            exitCode: 2,
-            cells: noCells(),
-            stories: [],
-            errors: ['Vitest did not run.'],
-        };
+        summary = (await result.summary) ?? failed('Vitest did not run.');
     } catch (error) {
-        summary = { exitCode: 2, cells: noCells(), stories: [], errors: [message(error)] };
+        summary = failed(message(error));
     } finally {
         process.stdout.write = writeStdout;
     }
+
+    return summary;
+}
+
+export async function report(argv: string[]): Promise<number> {
+    const options = parseArgs(argv);
+    if (typeof options === 'string') {
+        console.error(`figma-qa report: ${options}`);
+
+        return 2;
+    }
+    const summary =
+        options.refresh && !figmaToken()
+            ? failed('--refresh fetches from Figma and needs FIGMA_TOKEN.')
+            : await run(options);
 
     if (options.json) {
         console.log(JSON.stringify(summary, null, 4));

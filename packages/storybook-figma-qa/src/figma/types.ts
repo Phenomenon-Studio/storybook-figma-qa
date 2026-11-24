@@ -126,7 +126,19 @@ export type FigmaVariant = {
 
 /** One component set, as cached in `${REFS_DIR}/<slug>/manifest.json` next to one PNG per variant. */
 export type FigmaSetManifest = {
-    source: { url: string; fileKey: string; nodeId: string; name: string; version: string; lastModified: string };
+    /**
+     * `version`: the Figma file version synced (compared with `/meta` to warn that Figma changed since). `hash`: of the
+     * set's raw `/nodes` subtree; images are re-rendered only when it changes.
+     */
+    source: {
+        url: string;
+        fileKey: string;
+        nodeId: string;
+        name: string;
+        version: string;
+        lastModified: string;
+        hash: string;
+    };
     /** VARIANT properties in Figma's order, each with its options in Figma's order: the matrix axes. */
     axes: { name: string; options: string[] }[];
     /** BOOLEAN properties. Figma renders only their defaults, so they can't be matrix axes. */
@@ -245,6 +257,8 @@ export type FigmaStoryResult = {
     blocks: FigmaBlockResult[];
     /** Harness or setup error that stopped the checks (misconfigured story, uncached set): not a design verdict. */
     error: string | null;
+    /** Never fail the run: Figma changed since the refs were synced, Figma unreachable while refs are cached. */
+    warnings: string[];
     ranAt: string;
 };
 

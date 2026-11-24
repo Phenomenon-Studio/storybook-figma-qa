@@ -1,12 +1,16 @@
-// Writes the committed Figma refs of both fixtures: one synthetic component set, `Swatch` (Size × Tone), as a sync
-// would cache it: manifest.json plus one 2x PNG per variant. Stand-in for Figma, so fixture runs need no token or
-// network. Re-run after changing the set below: `node scripts/fixture-refs.mjs`.
+// Writes the recorded Figma responses the kit's tests serve from a stub, and the committed Figma refs of both
+// fixtures synced from them: one synthetic component set, `Swatch` (Size × Tone). The recordings stand in for Figma,
+// so fixture runs need no token or network; refs are built by the kit's own spec extraction, so they match what a
+// sync of the recordings writes. Re-run after changing the set below: `pnpm build && node scripts/fixture-refs.mjs`.
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { crc32, deflateSync } from 'node:zlib';
+import { setManifest } from '../packages/storybook-figma-qa/dist/node/set-manifest.js';
 
 const SCALE = 2;
 const FILE_KEY = 'FIXTUREKIT';
+const VERSION = '1';
+const LAST_MODIFIED = '2026-11-21T00:00:00Z';
 const SET_ID = '10:0';
 const URL = `https://www.figma.com/design/${FILE_KEY}/Fixture-UI-kit?node-id=${SET_ID.replace(':', '-')}`;
 const SIZES = { Small: { side: 24, radius: 4 }, Large: { side: 40, radius: 8 } };
@@ -72,62 +76,61 @@ function roundedSquare(side, radius, color) {
     return png(size, size, data);
 }
 
+/** Figma colours are 0–1 floats. */
+function figmaColor({ r, g, b, a }) {
+    return { r: r / 255, g: g / 255, b: b / 255, a };
+}
+
 const variants = [];
 let index = 1;
+let y = 0;
 for (const [sizeName, size] of Object.entries(SIZES)) {
+    let x = 0;
     for (const [toneName, fill] of Object.entries(TONES)) {
         variants.push({
             id: `10:${index++}`,
             name: `Size=${sizeName}, Tone=${toneName}`,
-            props: { Size: sizeName, Tone: toneName },
-            size,
-            fill,
+            type: 'COMPONENT',
+            blendMode: 'PASS_THROUGH',
+            absoluteBoundingBox: { x, y, width: size.side, height: size.side },
+            fills: [{ blendMode: 'NORMAL', type: 'SOLID', color: figmaColor(fill) }],
+            cornerRadius: size.radius,
+            layoutSizingHorizontal: 'FIXED',
+            layoutSizingVertical: 'FIXED',
+            children: [],
+            png: roundedSquare(size.side, size.radius, fill),
         });
+        x += size.side + 16;
     }
+    y += size.side + 16;
 }
 
-const manifest = {
-    source: {
-        url: URL,
-        fileKey: FILE_KEY,
-        nodeId: SET_ID,
-        name: 'Swatch',
-        version: '1',
-        lastModified: '2026-11-21T00:00:00Z',
+const document = {
+    id: SET_ID,
+    name: 'Swatch',
+    type: 'COMPONENT_SET',
+    blendMode: 'PASS_THROUGH',
+    absoluteBoundingBox: { x: 0, y: 0, width: 168, height: 96 },
+    componentPropertyDefinitions: {
+        Size: { type: 'VARIANT', defaultValue: 'Small', variantOptions: Object.keys(SIZES) },
+        Tone: { type: 'VARIANT', defaultValue: 'Brand', variantOptions: Object.keys(TONES) },
     },
-    axes: [
-        { name: 'Size', options: Object.keys(SIZES) },
-        { name: 'Tone', options: Object.keys(TONES) },
-    ],
-    booleans: [],
-    variants: variants.map(({ id, name, props, size, fill }) => {
-        return {
-            id,
-            name,
-            props,
-            spec: {
-                root: {
-                    name,
-                    width: size.side,
-                    height: size.side,
-                    radius: [size.radius, size.radius, size.radius, size.radius],
-                    hugWidth: false,
-                    fill,
-                    fillTypes: [],
-                    opacity: 1,
-                    stroke: null,
-                    shadows: [],
-                    blendMode: null,
-                    blur: { layer: null, background: null },
-                    layout: null,
-                },
-                texts: [],
-                icons: [],
-            },
-        };
+    children: variants.map(({ png: _png, ...node }) => {
+        return node;
     }),
 };
+const entry = { document, components: {}, componentSets: {}, schemaVersion: 0, styles: {} };
+const nodes = { name: 'Fixture UI kit', lastModified: LAST_MODIFIED, version: VERSION, nodes: { [SET_ID]: entry } };
 
+const recordings = path.join(import.meta.dirname, '..', 'packages', 'storybook-figma-qa', 'test', 'figma-api', FILE_KEY);
+rmSync(recordings, { recursive: true, force: true });
+mkdirSync(path.join(recordings, 'images'), { recursive: true });
+writeFileSync(path.join(recordings, 'nodes.json'), `${JSON.stringify(nodes, null, 4)}\n`);
+for (const variant of variants) {
+    writeFileSync(path.join(recordings, 'images', `${variant.id.replace(':', '-')}.png`), variant.png);
+}
+
+const manifest = setManifest(URL, entry, VERSION, LAST_MODIFIED);
 for (const fixture of ['sb10', 'sb11']) {
     const refs = path.join(import.meta.dirname, '..', 'fixtures', fixture, 'figma-qa', '__refs__');
     const dir = path.join(refs, `${FILE_KEY}-${SET_ID.replace(':', '-')}`);
@@ -135,9 +138,6 @@ for (const fixture of ['sb10', 'sb11']) {
     mkdirSync(dir, { recursive: true });
     writeFileSync(path.join(dir, 'manifest.json'), `${JSON.stringify(manifest, null, 4)}\n`);
     for (const variant of variants) {
-        writeFileSync(
-            path.join(dir, `${variant.id.replace(':', '-')}.png`),
-            roundedSquare(variant.size.side, variant.size.radius, variant.fill)
-        );
+        writeFileSync(path.join(dir, `${variant.id.replace(':', '-')}.png`), variant.png);
     }
 }

@@ -5,3 +5,5 @@ export const PANEL_TITLE = 'Figma diff';
 export const COMPARE_GLOBAL = 'figmaCompare';
 /** Vitest project name of the Figma checks; `figma-qa report` runs only this project. */
 export const FIGMA_PROJECT = 'figma-qa';
+/** Set by `figma-qa report --refresh` for the in-process browser commands: adopt the current Figma version. */
+export const REFRESH_ENV = 'FIGMA_QA_REFRESH';

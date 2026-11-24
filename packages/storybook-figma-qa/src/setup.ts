@@ -266,6 +266,7 @@ afterEach(async (context) => {
         name: context.task.name,
         blocks: [],
         error: null,
+        warnings: [],
         ranAt: new Date().toISOString(),
     };
     const failed = context.task.result?.state === 'fail';
@@ -274,11 +275,9 @@ afterEach(async (context) => {
             const cause = context.task.result?.errors?.[0]?.message ?? 'unknown error';
             throw new Error(`Story failed before the Figma checks: ${cause}`);
         }
-        result.blocks = await checkCells(
-            storyId,
-            story,
-            await resolveStory(story.parameters, commands.figmaEnsureSets)
-        );
+        const resolved = await resolveStory(story.parameters, commands.figmaEnsureSets);
+        result.warnings = resolved.warnings;
+        result.blocks = await checkCells(storyId, story, resolved);
     } catch (error) {
         result.error = error instanceof Error ? error.message : String(error);
     }

@@ -1,4 +1,4 @@
-// Vitest browser commands: the Node side of the Figma checks. Refs are read from the committed refs dir, pixels are
+// Vitest browser commands: the Node side of the Figma checks. Refs are synced lazily into the refs dir, pixels are
 // diffed here (one screenshot per cell crosses the channel), and results are written per story.
 import type { BrowserCommand } from 'vitest/node';
 import type { Box, FigmaSetManifest, FigmaStoryResult } from '../figma/types.ts';
@@ -6,36 +6,44 @@ import type { FigmaVariableCatalog } from '../figma/variables.ts';
 import type { LoadedSets } from '../figma/story.ts';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { figmaSlug, parseFigmaUrl, REFS_DIR, refPng, RESULTS_DIR, resultsFile, variantSlug } from '../figma/types.ts';
+import { REFS_DIR, refPng, RESULTS_DIR, resultsFile, variantSlug } from '../figma/types.ts';
+import { readJson } from './json.ts';
 import { pixelDiff } from './pixel-diff.ts';
+import { FigmaSync } from './sync.ts';
 
-/** Parsed JSON, or null when the file doesn't exist. Any other read or parse error is thrown. */
-export async function readJson<T>(file: string): Promise<T | null> {
-    try {
-        return JSON.parse(await readFile(file, 'utf8')) as T;
-    } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-            return null;
-        }
-        throw error;
-    }
-}
+/** One sync state per Vitest run: every story of the run shares its `/meta` calls and coalesced batches. */
+const syncs = new WeakMap<object, FigmaSync>();
 
-/** Manifests for a story's set URLs, plus the variable names. A set with no cached refs is a setup error. */
+/**
+ * Manifests for a story's set URLs, synced lazily (sync.ts), plus the variable names. Called by the preview loader
+ * and again by the checks; the second call is served from the run's memory.
+ */
 export const figmaEnsureSets: BrowserCommand<[urls: string[]]> = async ({ project }, urls): Promise<LoadedSets> => {
-    const refs = path.join(project.config.root, REFS_DIR);
-    const manifests: Record<string, FigmaSetManifest> = {};
-    for (const url of urls) {
-        const { fileKey, nodeId } = parseFigmaUrl(url);
-        const manifest = await readJson<FigmaSetManifest>(path.join(refs, figmaSlug(fileKey, nodeId), 'manifest.json'));
-        if (!manifest) {
-            throw new Error(`Figma set ${url} not cached in ${REFS_DIR}; run with a Figma token to sync it.`);
-        }
-        manifests[url] = manifest;
+    const root = project.config.root;
+    let sync = syncs.get(project.vitest);
+    if (!sync) {
+        sync = new FigmaSync(root);
+        syncs.set(project.vitest, sync);
     }
-    const catalog = await readJson<FigmaVariableCatalog>(path.join(refs, 'variables.json'));
+    const synced = await Promise.all(
+        urls.map((url) => {
+            return sync.ensure(url);
+        })
+    );
+    const manifests: Record<string, FigmaSetManifest> = {};
+    const warnings = new Set<string>();
+    urls.forEach((url, index) => {
+        const set = synced[index];
+        if (set) {
+            manifests[url] = set.manifest;
+            if (set.warning) {
+                warnings.add(set.warning);
+            }
+        }
+    });
+    const catalog = await readJson<FigmaVariableCatalog>(path.join(root, REFS_DIR, 'variables.json'));
 
-    return { manifests, variables: catalog?.variables ?? {} };
+    return { manifests, variables: catalog?.variables ?? {}, warnings: [...warnings] };
 };
 
 export type PixelDiffRequest = {

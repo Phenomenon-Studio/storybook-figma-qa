@@ -10,6 +10,8 @@ export type LoadedSets = {
     /** Keyed by set URL. */
     manifests: Record<string, FigmaSetManifest>;
     variables: Record<string, FigmaVariable>;
+    /** About the served sets; never fail the run. */
+    warnings: string[];
 };
 
 /** A matrix block bound to its design entry and synced set. */
@@ -21,7 +23,11 @@ export type ResolvedBlock = {
     manifest: FigmaSetManifest;
 };
 
-export type ResolvedStory = { blocks: ResolvedBlock[]; variables: Record<string, FigmaVariable> };
+export type ResolvedStory = {
+    blocks: ResolvedBlock[];
+    variables: Record<string, FigmaVariable>;
+    warnings: string[];
+};
 
 /** What the preview loader hands the story under `loaded.figmaQa`. */
 export type LoadedFigma = ResolvedStory | { error: string };
@@ -104,5 +110,5 @@ export async function resolveStory(parameters: StoryParameters, loadSets: LoadSe
         return { name: entry.name, url: entry.url, slug: figmaSlug(fileKey, nodeId), block, manifest };
     });
 
-    return { blocks, variables: loaded.variables };
+    return { blocks, variables: loaded.variables, warnings: loaded.warnings };
 }

@@ -5,7 +5,8 @@
         "nodeId": "10:0",
         "name": "Swatch",
         "version": "1",
-        "lastModified": "2026-11-21T00:00:00Z"
+        "lastModified": "2026-11-21T00:00:00Z",
+        "hash": "7ff8d68e3817b9a4"
     },
     "axes": [
         {
@@ -38,13 +39,13 @@
                     "name": "Size=Small, Tone=Brand",
                     "width": 24,
                     "height": 24,
+                    "hugWidth": false,
                     "radius": [
                         4,
                         4,
                         4,
                         4
                     ],
-                    "hugWidth": false,
                     "fill": {
                         "r": 59,
                         "g": 91,
@@ -78,13 +79,13 @@
                     "name": "Size=Small, Tone=Neutral",
                     "width": 24,
                     "height": 24,
+                    "hugWidth": false,
                     "radius": [
                         4,
                         4,
                         4,
                         4
                     ],
-                    "hugWidth": false,
                     "fill": {
                         "r": 173,
                         "g": 181,
@@ -118,13 +119,13 @@
                     "name": "Size=Small, Tone=Danger",
                     "width": 24,
                     "height": 24,
+                    "hugWidth": false,
                     "radius": [
                         4,
                         4,
                         4,
                         4
                     ],
-                    "hugWidth": false,
                     "fill": {
                         "r": 224,
                         "g": 49,
@@ -158,13 +159,13 @@
                     "name": "Size=Large, Tone=Brand",
                     "width": 40,
                     "height": 40,
+                    "hugWidth": false,
                     "radius": [
                         8,
                         8,
                         8,
                         8
                     ],
-                    "hugWidth": false,
                     "fill": {
                         "r": 59,
                         "g": 91,
@@ -198,13 +199,13 @@
                     "name": "Size=Large, Tone=Neutral",
                     "width": 40,
                     "height": 40,
+                    "hugWidth": false,
                     "radius": [
                         8,
                         8,
                         8,
                         8
                     ],
-                    "hugWidth": false,
                     "fill": {
                         "r": 173,
                         "g": 181,
@@ -238,13 +239,13 @@
                     "name": "Size=Large, Tone=Danger",
                     "width": 40,
                     "height": 40,
+                    "hugWidth": false,
                     "radius": [
                         8,
                         8,
                         8,
                         8
                     ],
-                    "hugWidth": false,
                     "fill": {
                         "r": 224,
                         "g": 49,
