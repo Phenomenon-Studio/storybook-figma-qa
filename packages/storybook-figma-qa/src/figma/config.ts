@@ -16,7 +16,7 @@ export type FigmaQaConfig = {
      */
     tokenName?: (variable: FigmaVariable) => string | null;
     icons?: {
-        /** Project SVG icons, relative to the project root. Default `src/assets/icons/*.svg`. */
+        /** Project SVG icons, relative to the project root. Default `src/icons/*.svg`. */
         glob?: string;
         /** Figma glyph component name → icon file name without `.svg`. Default: last path segment kebab-cased. */
         name?: (figmaName: string) => string;
@@ -168,7 +168,7 @@ export function resolveConfig(raw: unknown): ResolvedConfig {
         tokens: { prefix },
         tokenName: optionalFunction(raw.tokenName, 'tokenName', defaultTokenName(prefix)),
         icons: {
-            glob: projectGlob(optionalString(icons.glob, 'icons.glob', 'src/assets/icons/*.svg')),
+            glob: projectGlob(optionalString(icons.glob, 'icons.glob', 'src/icons/*.svg')),
             name: optionalFunction(icons.name, 'icons.name', iconName),
         },
         refsDir: optionalString(raw.refsDir, 'refsDir', 'figma-qa/__refs__'),

@@ -77,7 +77,7 @@ describe.each(FIXTURES)('figma-qa config in fixtures/%s', (fixture) => {
 
             expect(result.code, result.stderr).toBe(0);
             expect(result.stdout).toContain(`no ${CONFIG}, defaults apply`);
-            expect(result.stdout).toContain('warn  icons: none match src/assets/icons/*.svg');
+            expect(result.stdout).toContain('warn  icons: none match src/icons/*.svg');
         });
 
         it('uses the default refs dir, ratio, token prefix and token name', async () => {

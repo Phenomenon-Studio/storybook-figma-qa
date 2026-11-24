@@ -10,7 +10,7 @@ describe('resolveConfig', () => {
         expect(config.tokens.prefix).toBe('--color-');
         expect(config.refsDir).toBe('figma-qa/__refs__');
         expect(config.maxDiffRatio).toBe(0.05);
-        expect(config.icons.glob).toBe('src/assets/icons/*.svg');
+        expect(config.icons.glob).toBe('src/icons/*.svg');
         expect(config.icons.name('Icons/Chevron Down')).toBe('chevron-down');
         expect(config.tokenName({ collection: 'c', type: 'COLOR', name: 'Surface/control 50%' })).toBe(
             '--color-surface-control-50'
