@@ -1,15 +1,14 @@
 // Vitest browser commands: the Node side of the Figma checks. Refs are synced lazily into the refs dir, pixels are
 // diffed here (one screenshot per cell crosses the channel), and results are written per story.
 import type { BrowserCommand } from 'vitest/node';
-import type { Box, FigmaSetManifest, FigmaStoryResult } from '../figma/types.ts';
-import type { FigmaVariableCatalog } from '../figma/variables.ts';
+import type { Box, FigmaCellResult, FigmaStoryResult } from '../figma/types.ts';
 import type { LoadedSets } from '../figma/story.ts';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { refPng, RESULTS_DIR, resultsFile, variantSlug } from '../figma/types.ts';
 import { loadProjectConfig } from './config.ts';
-import { readJson } from './json.ts';
 import { pixelDiff } from './pixel-diff.ts';
+import { loadSets } from './sets.ts';
 import { FigmaSync } from './sync.ts';
 
 async function refsDirOf(root: string): Promise<string> {
@@ -31,25 +30,8 @@ export const figmaEnsureSets: BrowserCommand<[urls: string[]]> = async ({ projec
         sync = new FigmaSync({ root, refsDir });
         syncs.set(project.vitest, sync);
     }
-    const synced = await Promise.all(
-        urls.map((url) => {
-            return sync.ensure(url);
-        })
-    );
-    const manifests: Record<string, FigmaSetManifest> = {};
-    const warnings = new Set<string>();
-    urls.forEach((url, index) => {
-        const set = synced[index];
-        if (set) {
-            manifests[url] = set.manifest;
-            if (set.warning) {
-                warnings.add(set.warning);
-            }
-        }
-    });
-    const catalog = await readJson<FigmaVariableCatalog>(path.join(root, refsDir, 'variables.json'));
 
-    return { manifests, variables: catalog?.variables ?? {}, warnings: [...warnings] };
+    return loadSets(root, refsDir, sync, urls);
 };
 
 export type PixelDiffRequest = {
@@ -69,6 +51,10 @@ export type PixelDiffResponse = {
     pixels: number | null;
     masked: number;
     error: string | null;
+    classes: FigmaCellResult['image']['classes'];
+    pair: FigmaCellResult['image']['pair'];
+    /** In image (device) pixels; the browser converts it and names the element under it. */
+    blob: { pixels: number; x: number; y: number; width: number; height: number } | null;
     files: { figma: string; actual: string; diff: string | null };
 };
 
@@ -91,7 +77,15 @@ export const figmaPixelDiff: BrowserCommand<[request: PixelDiffRequest]> = async
         await writeFile(path.join(root, diff), result.diff);
     }
 
-    return { pixels: result.pixels, masked: result.masked, error: result.error, files: { figma, actual, diff } };
+    return {
+        pixels: result.pixels,
+        masked: result.masked,
+        error: result.error,
+        classes: result.classes,
+        pair: result.pair,
+        blob: result.blob,
+        files: { figma, actual, diff },
+    };
 };
 
 export const figmaSaveStoryResult: BrowserCommand<[result: FigmaStoryResult]> = async ({ project }, result) => {

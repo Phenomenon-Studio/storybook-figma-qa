@@ -17,7 +17,8 @@ Every change must hold on `fixtures/sb10` (Storybook 10.6, Vitest 4) **and** `fi
 
 - **Setup order**: `pnpm install` → `pnpm build` → `pnpm install --offline`. The `figma-qa` bin links only once `dist/cli.js` exists, and fixtures hold an injected copy of the kit that syncs after `build`: rebuild before running anything in a fixture.
 - **pnpm 10**, pinned in `packageManager`: pnpm 11 needs Node ≥ 22.13, the floor is 22.12.
-- **Manager entry uses classic JSX** (`/** @jsxRuntime classic */` + `import React`): SB 10's manager shares `react` but not `react/jsx-runtime`.
+- **Manager entry uses classic JSX** (`/** @jsxRuntime classic */` + `import React`): SB 10's manager shares `react` but not `react/jsx-runtime`. So does everything it imports (`src/ui/`), and TanStack Query gets its client per query, never through `QueryClientProvider` (built on `react/jsx-runtime`).
+- **Panel and HTML report are one UI**: `src/ui/` components, live in the manager and `renderToStaticMarkup`'d by `report`. Verdicts come only from `figma/verdict.ts`. Their stories (`stories/`, the kit's own SB 10 Storybook in `.storybook/`) run in the `ui` Vitest project with axe.
 - **Preview side lives in `definePreview({ addons })`**: CSF Next ignores preset `previewAnnotations`. `definePreviewAddon` comes from `storybook/internal/csf` (the one sanctioned internal import).
 - **Edit user config with magicast** on literal shapes only; any other shape prints the exact snippet and exits 2. `storybook/internal/*` AST APIs changed in 11. Safe/unsafe shape list: ticket 02 `## Answer`.
 - **Vitest setup files register nothing**: `setProjectAnnotations` throws on 11.
@@ -26,7 +27,7 @@ Every change must hold on `fixtures/sb10` (Storybook 10.6, Vitest 4) **and** `fi
 
 ## Package contract
 
-- ESM only. Peers `storybook ^10.6.0 || ^11.0.0-0`, `vitest ^4 || ^5`, `react`, plus `@storybook/addon-vitest` and `@vitest/browser-playwright` (the `./vitest` project composes them); engines Node ≥ 22.12, Vite ≥ 6.3. Widening or narrowing a range is a semver decision.
+- ESM only. Peers `storybook ^10.6.0 || ^11.0.0-0`, `vitest ^4 || ^5`, `react`, `react-dom` (the HTML report renders on the server), plus `@storybook/addon-vitest` and `@vitest/browser-playwright` (the `./vitest` project composes them); engines Node ≥ 22.12, Vite ≥ 6.3. Widening or narrowing a range is a semver decision.
 - CLI exit codes: 0 ok, 1 design failure, 2 harness or setup error. Only `init` prompts. Commands load lazily so heavy deps cost only the command that uses them.
 - Any `figma-qa.config.ts` or committed refs format change is a **major** and ships a `figma-qa migrate` step.
 - `skills/` holds thin skills: they call CLI commands and keep only judgment.

@@ -88,7 +88,11 @@ function Block({ resolved, renderCell }: { resolved: ResolvedBlock; renderCell: 
 export function FigmaMatrix({ context, renderCell }: FigmaMatrixProps) {
     const loaded = context.loaded.figmaQa as LoadedFigma | undefined;
     if (!loaded) {
-        return <p style={labelStyle}>Figma refs are loaded in a `figma-qa report` run.</p>;
+        return (
+            <p style={labelStyle}>
+                Figma refs load in a `figma-qa report` run and in a running Storybook, not in a static build.
+            </p>
+        );
     }
     if ('error' in loaded) {
         return (

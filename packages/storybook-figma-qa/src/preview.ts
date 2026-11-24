@@ -1,6 +1,6 @@
-import type { LoadSets } from './figma/story.ts';
+import type { LoadedSets, LoadSets } from './figma/story.ts';
 import { definePreviewAddon } from 'storybook/internal/csf';
-import { COMPARE_GLOBAL } from './constants.ts';
+import { COMPARE_GLOBAL, DEV_ROUTE } from './constants.ts';
 import { LOAD_SETS_HOOK, resolveStory } from './figma/story.ts';
 import { FIGMA_TAG } from './figma/types.ts';
 
@@ -18,19 +18,45 @@ export type {
     FigmaVariant,
 } from './figma/types.ts';
 
+/** No dev route to ask: a static Storybook build. The matrix says where refs load instead. */
+class NoDevRoute extends Error {}
+
+/** In a running Storybook, refs come from the dev route (node/vite-plugin.ts), as Node serves them to a run. */
+const devLoadSets: LoadSets = async (urls) => {
+    const response = await fetch(`${DEV_ROUTE}/sets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(urls),
+    }).catch(() => {
+        return null;
+    });
+    if (!response || response.status === 404) {
+        throw new NoDevRoute();
+    }
+    if (!response.ok) {
+        throw new Error(await response.text());
+    }
+
+    return response.json() as Promise<LoadedSets>;
+};
+
 /**
- * Binds a Figma story's matrix blocks to their synced sets, under `loaded.figmaQa`. Refs come from Node through the
- * hook the Vitest setup installs; outside a run there is no hook and the matrix says so. A misconfigured story loads
- * its error instead of throwing, so the run records it per story.
+ * Binds a Figma story's matrix blocks to their synced sets, under `loaded.figmaQa`. In a run, refs come from Node
+ * through the hook the Vitest setup installs; in a running Storybook, from the dev route. A misconfigured story
+ * loads its error instead of throwing, so the run records it per story.
  */
 async function loadFigma({ tags, parameters }: { tags: string[]; parameters: Record<string, unknown> }) {
-    const loadSets = (globalThis as { [LOAD_SETS_HOOK]?: LoadSets })[LOAD_SETS_HOOK];
-    if (!tags.includes(FIGMA_TAG) || !loadSets) {
+    if (!tags.includes(FIGMA_TAG)) {
         return {};
     }
+    const loadSets = (globalThis as { [LOAD_SETS_HOOK]?: LoadSets })[LOAD_SETS_HOOK] ?? devLoadSets;
     try {
         return { figmaQa: await resolveStory(parameters, loadSets) };
     } catch (error) {
+        if (error instanceof NoDevRoute) {
+            return {};
+        }
+
         return { figmaQa: { error: error instanceof Error ? error.message : String(error) } };
     }
 }

@@ -7,3 +7,8 @@ export const COMPARE_GLOBAL = 'figmaCompare';
 export const FIGMA_PROJECT = 'figma-qa';
 /** Set by `figma-qa report --refresh` for the in-process browser commands: adopt the current Figma version. */
 export const REFRESH_ENV = 'FIGMA_QA_REFRESH';
+/**
+ * Dev-only route a running Storybook serves (node/vite-plugin.ts): `${DEV_ROUTE}/files/<project path>` reads run results
+ * and refs for the panel; `POST ${DEV_ROUTE}/sets` loads a Figma story's sets for the matrix.
+ */
+export const DEV_ROUTE = '/__figma-qa';

@@ -233,14 +233,31 @@ export type FigmaCellResult = {
         maxRatio: number;
         /** Comparator message when it could not measure. */
         error: string | null;
-        /** Differing pixels by kind (diff-map.ts), at 2x: drawn only in Figma, only in the story, other colour. */
-        classes?: { figma: number; story: number; colour: number; masked: number } | null;
-        /** Largest connected differing region, CSS px relative to the root, and the element drawn at its centre. */
-        blob?: { area: number; box: Box; element: string | null } | null;
+        /**
+         * The diff map, computed once in Node (node/diff-map.ts): differing pixels by kind, at 2x. `figma`: drawn only
+         * in Figma; `story`: only in the story; `colour`: in both, another colour; `masked`: text, judged by spec.
+         * null when the images couldn't be compared.
+         */
+        classes: DiffClasses | null;
+        /** The colour change that dominates the `colour` pixels, as hex; null when none does. */
+        pair: { figma: string; story: string } | null;
+        /**
+         * Largest connected differing region: `area` in CSS px², `box` in CSS px relative to the cell, and the element
+         * drawn at its centre (a path from the component root). null when nothing differs.
+         */
+        blob: { area: number; box: Box; element: string | null } | null;
     };
-    /** Relative to the project root. `figma`: Figma's own export; `actual`: the cell's screenshot. */
+    /**
+     * Relative to the project root. `figma`: Figma's own export; `actual`: the cell's screenshot; `diff`: the diff map
+     * (orange Figma only, blue story only, yellow other colour, hatched text, the rest dimmed).
+     */
     files: { figma: string; actual: string | null; diff: string | null };
 };
+
+/** The diff map's colours (sRGB), shared by the image Node paints and the legend the UI draws. */
+export const DIFF_COLOURS = { figma: [255, 138, 61], story: [77, 163, 255], colour: [255, 222, 89] } as const;
+
+export type DiffClasses = { figma: number; story: number; colour: number; masked: number };
 
 export type FigmaBlockResult = {
     /** `name`: the design entry; `set`: Figma's component set name. */
@@ -283,3 +300,42 @@ export function figmaIssueText(issue: FigmaIssue): string {
 
     return `${issue.element} · ${issue.property}: story ${issue.actual.text} ≠ Figma ${issue.expected.text} (${delta}allowed ${issue.tolerance})`;
 }
+
+export type CellStatus = FigmaCellResult['status'];
+export type CellCounts = Record<CellStatus, number>;
+
+/** A story's outcome (verdict.ts). `error`: a harness or setup error stopped its checks: not a design verdict. */
+export type StoryVerdict = 'pass' | 'fail' | 'error';
+
+export type FigmaStorySummary = {
+    storyId: string | null;
+    title: string;
+    name: string;
+    file: string;
+    verdict: StoryVerdict;
+    cells: CellCounts;
+    error: string | null;
+    /** Per-story results JSON, relative to the project root. */
+    results: string | null;
+};
+
+/** One run's outcome: printed by `report --json`, written to `RUN_FILE`. The panel and the HTML report render it. */
+export type FigmaRunSummary = {
+    exitCode: 0 | 1 | 2;
+    /**
+     * The stories ran in the host's Chromium, not the pinned browser image: pixels aren't comparable to CI. A
+     * warning, never a verdict.
+     */
+    hostBrowser: boolean;
+    cells: CellCounts;
+    stories: FigmaStorySummary[];
+    /** Errors outside any story: unloadable story files, unhandled errors, a missing Figma project. */
+    errors: string[];
+    /** Stories' warnings, deduplicated: never change the exit code. */
+    warnings: string[];
+};
+
+/** The run summary, relative to the project root. */
+export const RUN_FILE = `${RESULTS_DIR}/run.json`;
+/** The HTML report: a self-contained directory (index.html plus the images it shows), relative to the project root. */
+export const REPORT_DIR = `${RESULTS_DIR}/report`;

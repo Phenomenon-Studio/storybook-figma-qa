@@ -15,7 +15,7 @@ import type {
 } from './figma/types.ts';
 import { afterEach, beforeEach, expect } from 'vitest';
 import { commands, page } from 'vitest/browser';
-import { setVariables, figmaSpecMismatches, textMasks } from './figma/spec.ts';
+import { pathFrom, setVariables, figmaSpecMismatches, textMasks } from './figma/spec.ts';
 import { projectConfig } from './figma/project.ts';
 import { LOAD_SETS_HOOK, resolveStory } from './figma/story.ts';
 import { FIGMA_SCALE, FIGMA_TAG, figmaIssueText, refPng } from './figma/types.ts';
@@ -142,6 +142,30 @@ function approvalFor(approved: FigmaApproval[] | undefined, props: Record<string
     );
 }
 
+/**
+ * The diff map's largest region in CSS px relative to the cell, and the element drawn at its centre: Node only sees
+ * pixels, the page knows what is there.
+ */
+function blobAt(cell: HTMLElement, root: Element, blob: PixelDiffResponse['blob']): FigmaCellResult['image']['blob'] {
+    if (!blob) {
+        return null;
+    }
+    const box = {
+        x: blob.x / FIGMA_SCALE,
+        y: blob.y / FIGMA_SCALE,
+        width: blob.width / FIGMA_SCALE,
+        height: blob.height / FIGMA_SCALE,
+    };
+    const rect = cell.getBoundingClientRect();
+    const hit = document.elementFromPoint(rect.x + box.x + box.width / 2, rect.y + box.y + box.height / 2);
+    let element: string | null = null;
+    if (hit && root.contains(hit)) {
+        element = pathFrom(root, hit);
+    }
+
+    return { area: blob.pixels / FIGMA_SCALE ** 2, box, element };
+}
+
 type FigmaStory = { tags: string[]; parameters: StoryParameters };
 
 /** Measures every cell of the story's matrix blocks. */
@@ -180,7 +204,15 @@ async function checkCells(storyId: string, story: FigmaStory, resolved: Resolved
                     status: 'missing',
                     approval: null,
                     spec: { mismatches: [], ignored: [] },
-                    image: { mismatchedPixels: null, ratio: null, maxRatio, error: null },
+                    image: {
+                        mismatchedPixels: null,
+                        ratio: null,
+                        maxRatio,
+                        error: null,
+                        classes: null,
+                        pair: null,
+                        blob: null,
+                    },
                     files: { figma: refPng(config.refsDir, slug, variant.id), actual: null, diff: null },
                 });
                 continue;
@@ -207,6 +239,7 @@ async function checkCells(storyId: string, story: FigmaStory, resolved: Resolved
                 ? `Capture blocked: ${view.covered} covers the cell. Harness issue, not a design diff.`
                 : diff.error;
             const pixels = view.covered ? null : diff.pixels;
+            const blob = view.covered ? null : blobAt(cell, root, diff.blob);
             const area = variant.spec.root.width * variant.spec.root.height * FIGMA_SCALE ** 2;
             // Share of what pixels judge: the area outside text masks, so masked text can't dilute a real difference.
             const ratio = pixels === null ? null : pixels / Math.max(1, area - diff.masked);
@@ -227,7 +260,15 @@ async function checkCells(storyId: string, story: FigmaStory, resolved: Resolved
                 status,
                 approval,
                 spec: { mismatches, ignored: all.filter(isIgnored) },
-                image: { mismatchedPixels: pixels, ratio, maxRatio, error },
+                image: {
+                    mismatchedPixels: pixels,
+                    ratio,
+                    maxRatio,
+                    error,
+                    classes: view.covered ? null : diff.classes,
+                    pair: view.covered ? null : diff.pair,
+                    blob,
+                },
                 files: diff.files,
             });
         }

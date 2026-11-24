@@ -21,7 +21,8 @@ const COALESCE_MS = 100;
 export type SyncedSet = { manifest: FigmaSetManifest; warning: string | null };
 
 /** Where a project keeps refs: `refsDir` is the config's, relative to `root`. */
-export type SyncPaths = { root: string; refsDir: string };
+/** `offline`: serve committed refs only, never call Figma (a running Storybook reads; only a report run syncs). */
+export type SyncPaths = { root: string; refsDir: string; offline?: boolean };
 
 type RawSet = { version: string; lastModified: string; entry: NodesEntry };
 
@@ -84,7 +85,7 @@ function staleWarning(local: Local, version: string): string | null {
 
 /** Syncs one file's batch of sets. Every set in the batch settles to its manifest or the batch's error. */
 async function syncFile(paths: SyncPaths, fileKey: string, urls: string[], meta: Meta): Promise<Map<string, SyncedSet>> {
-    const token = figmaToken();
+    const token = paths.offline ? null : figmaToken();
     const refresh = process.env[REFRESH_ENV] === '1';
     const locals = await Promise.all(
         urls.map((url) => {

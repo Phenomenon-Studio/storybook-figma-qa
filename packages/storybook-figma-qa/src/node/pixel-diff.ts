@@ -1,10 +1,12 @@
 // Pixel diff in Node: the cell's one screenshot against Figma's 2x export, flattened onto the page backdrop. Text
 // boxes are masked identically on both images, so pixels judge fills, strokes, shadows and glyphs while text is
 // judged by spec. Masks are painted on whole device pixels: both sides get exactly the same mask.
-import type { Box } from '../figma/types.ts';
+import type { Box, DiffClasses } from '../figma/types.ts';
+import type { DiffMap } from './diff-map.ts';
 import pixelmatch from 'pixelmatch';
 import { PNG } from 'pngjs';
 import { FIGMA_SCALE } from '../figma/types.ts';
+import { diffMap } from './diff-map.ts';
 
 type Rgb = { r: number; g: number; b: number };
 
@@ -69,8 +71,17 @@ function paintMasks(images: PNG[], masks: Box[], width: number, height: number):
 }
 
 export type PixelDiff =
-    | { pixels: number; masked: number; diff: Buffer | null; error: null }
-    | { pixels: null; masked: 0; diff: null; error: string };
+    | {
+          pixels: number;
+          masked: number;
+          /** The diff map's PNG (diff-map.ts); null when no pixel differs. */
+          diff: Buffer | null;
+          classes: DiffClasses;
+          pair: DiffMap['pair'];
+          blob: DiffMap['blob'];
+          error: null;
+      }
+    | { pixels: null; masked: 0; diff: null; classes: null; pair: null; blob: null; error: string };
 
 /** Mismatched-pixel count at pixelmatch threshold 0.1 (the story's tolerance is applied by the caller). */
 export function pixelDiff(reference: Buffer, screenshot: Buffer, backdrop: string, masks: Box[]): PixelDiff {
@@ -81,15 +92,25 @@ export function pixelDiff(reference: Buffer, screenshot: Buffer, backdrop: strin
             pixels: null,
             masked: 0,
             diff: null,
+            classes: null,
+            pair: null,
+            blob: null,
             error: `Sizes differ: Figma ${figma.width}×${figma.height}, story ${story.width}×${story.height} (device px).`,
         };
     }
     const { width, height } = figma;
-    flatten(figma, parseBackdrop(backdrop));
+    const ground = parseBackdrop(backdrop);
+    flatten(figma, ground);
     flatten(story, CANVAS);
     const masked = paintMasks([figma, story], masks, width, height);
-    const output = new PNG({ width, height });
-    const pixels = pixelmatch(figma.data, story.data, output.data, width, height, { threshold: 0.1 });
+    const pixels = pixelmatch(figma.data, story.data, undefined, width, height, { threshold: 0.1 });
+    const map = diffMap(figma, story, ground);
+    let diff: Buffer | null = null;
+    if (pixels > 0) {
+        const output = new PNG({ width, height });
+        output.data.set(map.image);
+        diff = PNG.sync.write(output);
+    }
 
-    return { pixels, masked, diff: pixels > 0 ? PNG.sync.write(output) : null, error: null };
+    return { pixels, masked, diff, classes: map.classes, pair: map.pair, blob: map.blob, error: null };
 }

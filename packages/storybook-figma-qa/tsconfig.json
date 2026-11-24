@@ -19,6 +19,8 @@
     "include": [
         "src",
         "test",
+        "stories",
+        ".storybook",
         "vitest.config.ts"
     ]
 }
