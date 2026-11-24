@@ -23,6 +23,17 @@ pnpm --dir fixtures/sb11 build-storybook && pnpm smoke:panel fixtures/sb11/story
 pnpm smoke:panel --dev fixtures/sb11                    # report, then `storybook dev`: panel shows the run's verdict
 ```
 
+## `figma-qa init`
+
+`pnpm dlx @phenomenon-studio/storybook-figma-qa init [--yes] [--dry-run] [--next]` installs the kit into a React + Vite project. Each step detects before it acts, so a re-run on a set-up project changes nothing; `--dry-run` prints the plan and writes or runs nothing.
+
+1. **Storybook**: none → `npx storybook@^10 init` for React + Vite (`--next`: `storybook@next`, the 11 beta). Before 10.6 → exit 2 pointing at `storybook upgrade`; no React + Vite (or another framework in `.storybook/main`) → exit 2 naming what it found.
+2. **Packages**: project `.npmrc` gets only `@phenomenon-studio:registry=https://npm.pkg.github.com` (the token stays in the user's `~/.npmrc`), then the kit and, when missing, `storybook add @storybook/addon-vitest`.
+3. **Config** (magicast, literal shapes only): the kit in `.storybook/main` `addons`, `figmaQa()` in CSF Next `definePreview({ addons })` (a classic preview is left to the preset), `figmaQa()` in Vitest `test.projects`. Any other shape prints the exact snippet and exits 2 after the other steps.
+4. **Project**: `"figma-report": "figma-qa report"` script, a `<!-- figma-qa:start -->` rules block in `AGENTS.md` (and `CLAUDE.md` when it doesn't import `@AGENTS.md`; only text between the markers is rewritten), and the kit's skills via the pinned `skills` CLI into `.agents/skills` and `.claude/skills` (skipped when the copies match the installed kit).
+
+It never touches stories, components, tokens, the manager theme, other Vitest projects, git or CI files. `test/init-cli.test.ts` runs it on copies of both fixtures with the kit stripped.
+
 ## `figma-qa report`
 
 The one local command, aliased in a project's `package.json` as `"figma-report": "figma-qa report"` (`pnpm figma-report`). It never prompts and exits 0 (pass, approved or no code equivalent), 1 (a cell differs from Figma) or 2 (harness or setup error).

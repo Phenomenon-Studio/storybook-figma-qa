@@ -46,6 +46,7 @@
     },
     "dependencies": {
         "@tanstack/react-query": "5.107.1",
+        "magicast": "0.5.5",
         "pixelmatch": "8.0.0",
         "pngjs": "7.0.0",
         "tinyglobby": "0.2.17"

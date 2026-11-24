@@ -22,12 +22,21 @@ function isExitError(error: unknown): error is Error & { code: number; stdout: s
 
 /** No Figma token or API override leaks in from the caller's shell: runs are offline unless `env` says otherwise. */
 export async function runCli(fixture: Fixture, args: string[], env: Record<string, string> = {}) {
+    return await runIn(fixtureDir(fixture), ['pnpm', 'exec', 'figma-qa', ...args], env);
+}
+
+/** The kit's own build, for projects with no installed kit (init refusals). */
+export const KIT_BIN = fileURLToPath(new URL('../dist/cli.js', import.meta.url));
+
+/** `command` in `cwd`, e.g. `['pnpm', 'exec', 'figma-qa', 'init']` in a fixture copy. */
+export async function runIn(cwd: string, command: string[], env: Record<string, string> = {}) {
     const { FIGMA_TOKEN: _token, FIGMA_API_URL: _api, FIGMA_QA_REFRESH: _refresh, ...base } = process.env;
+    const [bin = '', ...args] = command;
     try {
-        const { stdout, stderr } = await execFileAsync('pnpm', ['exec', 'figma-qa', ...args], {
+        const { stdout, stderr } = await execFileAsync(bin, args, {
             // A report that prompted would hang here, not read an answer.
             timeout: 300_000,
-            cwd: fixtureDir(fixture),
+            cwd,
             env: { ...base, ...env },
         });
 

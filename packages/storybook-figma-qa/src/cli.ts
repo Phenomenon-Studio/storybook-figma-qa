@@ -23,6 +23,8 @@ const USAGE = [
     '',
     'report [filters...] [--json] [--refresh] [--host-browser] [--no-open]',
     '  filters: component names, or story-id globs (`*`, `?`, `--`)',
+    'init [--yes] [--dry-run] [--next]',
+    '  --next: bootstrap Storybook 11 beta when the project has no Storybook',
 ].join('\n');
 
 function isCommand(name: string): name is Command {
@@ -55,6 +57,12 @@ async function main(argv: string[]): Promise<number> {
         const { doctor } = await import('./commands/doctor.ts');
 
         return await doctor();
+    }
+
+    if (name === 'init') {
+        const { init } = await import('./commands/init.ts');
+
+        return await init(rest);
     }
 
     console.error(`figma-qa ${name}: not implemented yet`);

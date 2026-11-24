@@ -11,7 +11,7 @@ export type OpenedProject = { vitest: Vitest } | { blocked: string };
 
 type Streams = { stdout: Writable; stderr: Writable };
 
-const MAIN_FILES = ['main.ts', 'main.mts', 'main.cts', 'main.js', 'main.mjs', 'main.cjs'];
+export const MAIN_FILES = ['main.ts', 'main.mts', 'main.cts', 'main.js', 'main.mjs', 'main.cjs'];
 
 /**
  * Whether `.storybook/main` names the kit: read as text, since loading it needs Storybook's internal presets. `init`
