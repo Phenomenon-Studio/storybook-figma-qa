@@ -200,6 +200,69 @@ export function nearestToken(color: Rgba, exact: number, prefer?: string | null)
     return best <= exact ? `= ${names}${more}` : `≈ ${names}${more} (Δ${Math.round(best)})`;
 }
 
+/** The kit tokens within `exact` per channel of a colour, in stylesheet order. */
+export function tokensAt(color: Rgba, exact: number): string[] {
+    tokenCache ??= parseTokens();
+
+    return tokenCache
+        .filter((token) => {
+            return distance(color, token.rgba) <= exact;
+        })
+        .map((token) => {
+            return token.name;
+        });
+}
+
+// Painted by no stylesheet: a computed value that turns into it can only have come from the probed token.
+const SENTINEL = 'rgb(1, 254, 3)';
+
+/**
+ * Whether the computed `properties` of `elements` come from custom property `token`, directly or through aliases:
+ * a value can't say which of several equal tokens it came from, the cascade can. The token is overridden with a
+ * sentinel on the first element and every ancestor (so aliases declared anywhere above re-resolve), the computed
+ * values are read again, and the inline styles are restored, all before the next frame.
+ */
+export function usesToken(elements: readonly Element[], properties: readonly string[], token: string): boolean {
+    const read = () => {
+        return elements
+            .flatMap((element) => {
+                const style = getComputedStyle(element);
+
+                return properties.map((property) => {
+                    return style.getPropertyValue(property);
+                });
+            })
+            .join('|');
+    };
+    const chain: (HTMLElement | SVGElement)[] = [];
+    for (let node: Element | null = elements[0] ?? null; node; node = node.parentElement) {
+        if (node instanceof HTMLElement || node instanceof SVGElement) {
+            chain.push(node);
+        }
+    }
+    const before = read();
+    // The attribute itself, so the DOM is left exactly as found (no empty `style=""` behind).
+    const saved = chain.map((node) => {
+        return node.getAttribute('style');
+    });
+    try {
+        for (const node of chain) {
+            node.style.setProperty(token, SENTINEL, 'important');
+        }
+
+        return read() !== before;
+    } finally {
+        chain.forEach((node, index) => {
+            const attribute = saved[index];
+            if (attribute === null || attribute === undefined) {
+                node.removeAttribute('style');
+            } else {
+                node.setAttribute('style', attribute);
+            }
+        });
+    }
+}
+
 /** Source-over of `top` (straight alpha) on `under`, which is treated as opaque: what the eye sees. */
 export function over(top: Rgba, under: Rgba): Rgba {
     const mix = (front: number, back: number) => {

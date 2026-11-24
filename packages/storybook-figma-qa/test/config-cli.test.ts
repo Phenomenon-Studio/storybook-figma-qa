@@ -89,8 +89,10 @@ describe.each(FIXTURES)('figma-qa config in fixtures/%s', (fixture) => {
                 expect(cell.image.maxRatio).toBe(0.05);
             }
             const row = neutralBackground(found);
-            // Default name `--color-tone-neutral` isn't a kit token.
-            expect(row?.expected.note).toContain('var Tone/Neutral · no kit token by that name');
+            // Default name `--color-tone-neutral` isn't a kit token: matched by value, as a guess.
+            expect(row?.expected.note).toBe(
+                'var Tone/Neutral · no kit token --color-tone-neutral · guess ≈ --color-neutral (Δ39)'
+            );
             expect(row?.actual.note).toBe('= --color-neutral');
         });
 

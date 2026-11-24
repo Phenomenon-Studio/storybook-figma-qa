@@ -5,7 +5,19 @@
 // mismatch lines; an empty list means "matches Figma within tolerance".
 import type { FigmaIssue, FigmaIssueValue, FigmaLayout, FigmaShadow, FigmaSpec, FigmaStroke, Rgba } from './types.ts';
 import type { FigmaVariable } from './variables.ts';
-import { backgroundOf, contrastRatio, deltaEOK, distance, nearestToken, over, toHsl, tokenColor, toRgba } from './colors.ts';
+import {
+    backgroundOf,
+    contrastRatio,
+    deltaEOK,
+    distance,
+    nearestToken,
+    over,
+    tokenColor,
+    tokensAt,
+    toHsl,
+    toRgba,
+    usesToken,
+} from './colors.ts';
 import { kitIconFile, kitIconOf } from './icons.ts';
 import { projectConfig } from './project.ts';
 
@@ -1004,24 +1016,22 @@ export function setVariables(variables: Record<string, FigmaVariable>): void {
 
 /**
  * Figma's side of a colour bound to a variable: `var Surface/control = --color-surface-control`, with the kit token
- * generated from that variable, its value when it no longer matches Figma's (drift), or the nearest token by value
- * when the kit has no token by that name. Returns the kit token for the story side to prefer.
+ * `tokenName` maps that variable to, and its value when it no longer matches Figma's (drift). Without a name for the
+ * id, or a kit token for the name, the nearest token by value stands in, labelled a guess. Returns the kit token for
+ * the story side to prefer.
  */
 function boundColor(color: Rgba, id: string): { note: string; token: string | null } {
+    const guess = `guess ${nearestToken(color, CHANNEL)}`;
     const variable = VARIABLES[id];
     if (!variable) {
-        return {
-            note: `var ${id} (unnamed: name it via figma-qa variables) · ${nearestToken(color, CHANNEL)}`,
-            token: null,
-        };
+        return { note: `var ${id} (unnamed) · ${guess}`, token: null };
     }
     const token = projectConfig().tokenName(variable);
     const kit = token ? tokenColor(token) : null;
     if (!token || !kit) {
-        return {
-            note: `var ${variable.name} · no kit token by that name; nearest ${nearestToken(color, CHANNEL)}`,
-            token: null,
-        };
+        const missing = token ? `no kit token ${token}` : 'no token name';
+
+        return { note: `var ${variable.name} · ${missing} · ${guess}`, token: null };
     }
     const drift = distance(kit, color) > CHANNEL ? ` (kit value ${toHsl(kit)})` : '';
 
@@ -1122,6 +1132,129 @@ function annotateBindings(issues: FigmaIssue[], spec: FigmaSpec): FigmaIssue[] {
 
         return issue;
     });
+}
+
+/** A colour Figma binds, where the story paints it: the computed properties that can carry it, and its value. */
+type BoundPaint = {
+    element: string;
+    property: string;
+    figma: Rgba | null | undefined;
+    id: string | undefined;
+    nodes: Element[];
+    properties: string[];
+    story: () => Rgba | null;
+};
+
+const STROKE_PROPERTIES = [
+    'border-top-color',
+    'border-right-color',
+    'border-bottom-color',
+    'border-left-color',
+    'outline-color',
+    'box-shadow',
+];
+
+function boundPaints(root: Element, spec: FigmaSpec, measured: Map<string, Element>): BoundPaint[] {
+    const paints: BoundPaint[] = [
+        {
+            element: 'Component',
+            property: 'Background',
+            figma: spec.root.fill,
+            id: spec.root.vars?.fill,
+            nodes: [root],
+            properties: ['background-color'],
+            story: () => {
+                return toRgba(getComputedStyle(root).backgroundColor);
+            },
+        },
+        {
+            element: 'Component',
+            property: 'Stroke colour',
+            figma: spec.root.stroke?.color,
+            id: spec.root.vars?.stroke,
+            nodes: [root],
+            properties: STROKE_PROPERTIES,
+            story: () => {
+                return cssStrokes(getComputedStyle(root))[0]?.color ?? null;
+            },
+        },
+    ];
+    for (const text of spec.texts) {
+        const element = `Text "${text.characters}"`;
+        const node = measured.get(element);
+        if (node) {
+            paints.push({
+                element,
+                property: 'Colour',
+                figma: text.color,
+                id: text.vars?.color,
+                nodes: [node],
+                properties: ['color'],
+                story: () => {
+                    return toRgba(getComputedStyle(node).color);
+                },
+            });
+        }
+    }
+    spec.icons.forEach((icon, index) => {
+        const element = `Icon ${index + 1} "${icon.name}"`;
+        const glyph = measured.get(element);
+        if (glyph) {
+            paints.push({
+                element,
+                property: 'Colour',
+                figma: icon.color,
+                id: icon.vars?.color,
+                nodes: [glyph, ...glyph.querySelectorAll('*')],
+                properties: ['color', 'fill', 'stroke', 'background-color', ...STROKE_PROPERTIES],
+                story: () => {
+                    return renderedGlyphColor(glyph, root);
+                },
+            });
+        }
+    });
+
+    return paints;
+}
+
+/**
+ * "Right value, wrong token": a colour that matches Figma by value (no row yet) while Figma binds a named variable
+ * whose kit token the story doesn't paint it with. Value comparison can't see it; the cascade can (`usesToken`). The
+ * received side names the token the story uses instead, when one of the same value is. Unnamed variables and names
+ * with no kit token have no token to hold the story to: value matching (a guess) is all they get.
+ */
+function tokenIssues(
+    root: Element,
+    spec: FigmaSpec,
+    measured: Map<string, Element>,
+    issues: FigmaIssue[]
+): FigmaIssue[] {
+    const out: FigmaIssue[] = [];
+    for (const paint of boundPaints(root, spec, measured)) {
+        const rowed = issues.some((issue) => {
+            return issue.element === paint.element && issue.property === paint.property;
+        });
+        if (!paint.figma || !paint.id || rowed) {
+            continue;
+        }
+        const { note, token } = boundColor(paint.figma, paint.id);
+        const story = paint.story();
+        if (!token || !story || usesToken(paint.nodes, paint.properties, token)) {
+            continue;
+        }
+        const used = tokensAt(story, CHANNEL).find((candidate) => {
+            return candidate !== token && usesToken(paint.nodes, paint.properties, candidate);
+        });
+        out.push({
+            element: paint.element,
+            property: paint.property,
+            expected: { text: toHsl(paint.figma), note, swatch: toHsl(paint.figma) },
+            actual: { text: toHsl(story), note: used ? `= ${used}` : 'not a kit token', swatch: toHsl(story) },
+            tolerance: `painted with ${token}`,
+        });
+    }
+
+    return out;
 }
 
 export function figmaSpecMismatches(root: Element, spec: FigmaSpec): FigmaIssue[] {
@@ -1490,7 +1623,8 @@ export function figmaSpecMismatches(root: Element, spec: FigmaSpec): FigmaIssue[
         }
     });
 
-    return annotateBindings(out, spec).map((issue) => {
+    // Token rows after the annotation: their notes already name the tokens, by cascade rather than by value.
+    return [...annotateBindings(out, spec), ...tokenIssues(root, spec, measured, out)].map((issue) => {
         const element = measured.get(issue.element);
 
         return element ? { ...issue, selector: pathFrom(root, element) } : issue;

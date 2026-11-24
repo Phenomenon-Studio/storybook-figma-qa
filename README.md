@@ -8,7 +8,7 @@ Monorepo for `@phenomenon-studio/storybook-figma-qa`, the Figma QA kit: checks S
 | `packages/storybook-figma-qa/{.storybook,stories}` | The kit's own Storybook (SB 10, dev only): the "Figma diff" panel and HTML report fed fixed results, tested with play functions and axe by the `ui` Vitest project. |
 | `fixtures/sb10` | React + Vite project on Storybook 10.6, wired to the kit by hand. |
 | `fixtures/sb11` | Same on Storybook 11 beta. |
-| `fixtures/*/figma-qa/__refs__` | Committed Figma refs for the fixtures' synthetic `Swatch` and `Glyph` sets, plus `variables.json`. Fixtures have no `figma-qa.config.ts`: the config tests write one per run. |
+| `fixtures/*/figma-qa/__refs__` | Committed Figma refs for the fixtures' synthetic `Swatch` and `Glyph` sets, plus `variables.json` naming the two colour variables Swatch binds (`Brand` maps to a kit token, `Tone/Neutral` doesn't). Fixtures have no `figma-qa.config.ts`: the config tests write one per run. |
 | `packages/storybook-figma-qa/test/figma-api` | Recorded Figma REST responses for that set, served by the test stub (`FIGMA_API_URL`). `pnpm build && node scripts/fixture-refs.mjs` rewrites them and the refs synced from them. |
 
 Fixtures get an injected copy of the kit (`injectWorkspacePackages`), so its peers resolve against each fixture's Storybook / Vitest like a real install.
@@ -45,6 +45,14 @@ The one local command, aliased in a project's `package.json` as `"figma-report":
 5. **report**: `figma-qa/.results/run.json` and `figma-qa/.results/report/`. From a terminal (stdout a TTY, no `CI`) the report opens with `$BROWSER` or the platform's opener; `--no-open` or `BROWSER=none` opens nothing. With `storybook dev` running, the "Figma diff" panel URL is printed.
 
 Positional filters intersect the scanned files: a filter with `*`, `?` or `--` is a story-id glob (`'swatch-figma--*'`, other stories in a collected file are skipped), anything else a component name, matched against the meta `component`, the title or one of its segments, or the file name (`Swatch`, `Swatch.figma`). No match is exit 2. `--json` prints the summary, with `files`, per-phase `timings` (ms) and `panelUrl`, and nothing else on stdout.
+
+## Figma variables
+
+Figma colours bound to a variable are held to the CSS token `tokenName` maps its name to (config; default `--color-` + the kebab-cased path). A colour matching Figma by value but painted with another token fails as "right value, wrong token": the check overrides the token for the cell's element and its ancestors and sees whether the computed colour follows. Names come from `<refsDir>/variables.json`, since the REST variables endpoint is Enterprise-only.
+
+An id with no name, or a name with no kit token, is matched by value: the row's note says `guess`, and the run carries one warning counting the unnamed ids. Neither changes the exit code.
+
+`figma-qa variables` prints a read-only Plugin API script for the unnamed ids only, one per Figma file, to run with the Figma MCP `use_figma`. `figma-qa variables -` (stdin) or `figma-qa variables <file>` merges the script's returned JSON into `variables.json`: names already committed never change, and a repeat merge writes nothing. Output that isn't the script's shape exits 2 and writes nothing.
 
 ## Releasing
 

@@ -16,6 +16,7 @@ import { figmaToken } from '../node/figma-api.ts';
 import { addonBlocked, openFigmaProject } from '../node/figma-project.ts';
 import { loadProjectConfig } from '../node/config.ts';
 import { readJson } from '../node/json.ts';
+import { countIds, unnamedVariables, unnamedWarning } from '../node/variables.ts';
 import { parseFilters, scanStoryFile, selectStories } from '../figma/story-scan.ts';
 import { panelUrl, runningStorybook } from '../node/storybook-url.ts';
 
@@ -132,6 +133,12 @@ async function summarize(
                 results: result && storyId ? resultsFile(storyId) : null,
             });
         }
+    }
+    // One line for the whole refs dir, whatever the stories bound: a warning, never a verdict.
+    const { refsDir } = (await loadProjectConfig(root)).config;
+    const unnamed = unnamedWarning(countIds(await unnamedVariables(root, refsDir)));
+    if (unnamed) {
+        warnings.add(unnamed);
     }
     const summary = summaryOf(state, {
         exitCode: runExitCode(stories, errors),

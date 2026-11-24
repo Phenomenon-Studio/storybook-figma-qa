@@ -25,6 +25,8 @@ const USAGE = [
     '  filters: component names, or story-id globs (`*`, `?`, `--`)',
     'init [--yes] [--dry-run] [--next]',
     '  --next: bootstrap Storybook 11 beta when the project has no Storybook',
+    'variables [<file> | -]',
+    '  no argument: print the use_figma script naming unnamed variable ids; <file> or - (stdin): merge its output',
 ].join('\n');
 
 function isCommand(name: string): name is Command {
@@ -63,6 +65,12 @@ async function main(argv: string[]): Promise<number> {
         const { init } = await import('./commands/init.ts');
 
         return await init(rest);
+    }
+
+    if (name === 'variables') {
+        const { variables } = await import('./commands/variables.ts');
+
+        return await variables(rest);
     }
 
     console.error(`figma-qa ${name}: not implemented yet`);

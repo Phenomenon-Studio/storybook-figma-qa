@@ -55,6 +55,12 @@
                                     "g": 0.3568627450980392,
                                     "b": 0.8588235294117647,
                                     "a": 1
+                                },
+                                "boundVariables": {
+                                    "color": {
+                                        "type": "VARIABLE_ALIAS",
+                                        "id": "VariableID:1:1"
+                                    }
                                 }
                             }
                         ],
@@ -145,6 +151,12 @@
                                     "g": 0.3568627450980392,
                                     "b": 0.8588235294117647,
                                     "a": 1
+                                },
+                                "boundVariables": {
+                                    "color": {
+                                        "type": "VARIABLE_ALIAS",
+                                        "id": "VariableID:1:1"
+                                    }
                                 }
                             }
                         ],

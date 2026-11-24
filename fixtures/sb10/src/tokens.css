@@ -1,5 +1,7 @@
 :root {
     --color-brand: #3b5bdb;
+    /* Brand's value under another name: a story painting with it matches Figma by value, not by token. */
+    --color-primary: #3b5bdb;
     /* Darker than Figma's neutral (#adb5bd): 3:1 non-text contrast on white. The fixture's deliberate deviation. */
     --color-neutral: #868e96;
     /* Aliases under another prefix: tokens only when a config sets `tokens.prefix: '--swatch-'`. */

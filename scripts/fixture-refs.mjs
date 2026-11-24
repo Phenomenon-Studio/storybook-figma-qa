@@ -1,6 +1,6 @@
 // Writes the recorded Figma responses the kit's tests serve from a stub, and the committed Figma refs of both
-// fixtures synced from them: two synthetic component sets, `Swatch` (Size × Tone, Neutral's fill bound to a colour
-// variable) and `Glyph` (one icon instance per variant), plus the variable catalogue naming that variable. The
+// fixtures synced from them: two synthetic component sets, `Swatch` (Size × Tone, Brand's and Neutral's fills bound
+// to colour variables) and `Glyph` (one icon instance per variant), plus the variable catalogue naming those variables. The
 // recordings stand in for Figma, so fixture runs need no token or network; refs are built by the kit's own spec
 // extraction, so they match what a sync of the recordings writes.
 // Re-run after changing the sets below: `pnpm build && node scripts/fixture-refs.mjs`.
@@ -19,8 +19,11 @@ const TONES = {
     Neutral: { r: 173, g: 181, b: 189, a: 1 },
     Danger: { r: 224, g: 49, b: 49, a: 1 },
 };
-/** Neutral's fill is bound to this variable; `variables.json` names it. */
-const NEUTRAL_VARIABLE = '1:2';
+/** Fills bound to colour variables, which `variables.json` names. Brand's name maps to a kit token, Neutral's doesn't. */
+const TONE_VARIABLES = {
+    Brand: { id: '1:1', name: 'Brand' },
+    Neutral: { id: '1:2', name: 'Tone/Neutral' },
+};
 /** Glyph variants: a 24×24 frame with one 16×16 icon instance inset 4px, drawn in Brand. */
 const GLYPHS = { Square: 0, Circle: 8 };
 const GLYPH = { frame: 24, side: 16, inset: 4 };
@@ -130,8 +133,9 @@ for (const [sizeName, size] of Object.entries(SIZES)) {
     let x = 0;
     for (const [toneName, fill] of Object.entries(TONES)) {
         const paint = { blendMode: 'NORMAL', type: 'SOLID', color: figmaColor(fill) };
-        if (toneName === 'Neutral') {
-            paint.boundVariables = { color: { type: 'VARIABLE_ALIAS', id: `VariableID:${NEUTRAL_VARIABLE}` } };
+        const variable = TONE_VARIABLES[toneName];
+        if (variable) {
+            paint.boundVariables = { color: { type: 'VARIABLE_ALIAS', id: `VariableID:${variable.id}` } };
         }
         swatches.push({
             id: `10:${index++}`,
@@ -211,7 +215,11 @@ const entries = Object.fromEntries(
 const nodes = { name: 'Fixture UI kit', lastModified: LAST_MODIFIED, version: VERSION, nodes: entries };
 const variables = {
     source: { fileKey: FILE_KEY, via: 'scripts/fixture-refs.mjs', updatedAt: LAST_MODIFIED },
-    variables: { [NEUTRAL_VARIABLE]: { collection: 'Tones', type: 'COLOR', name: 'Tone/Neutral' } },
+    variables: Object.fromEntries(
+        Object.values(TONE_VARIABLES).map(({ id, name }) => {
+            return [id, { collection: 'Tones', type: 'COLOR', name }];
+        })
+    ),
 };
 
 const recordings = path.join(import.meta.dirname, '..', 'packages', 'storybook-figma-qa', 'test', 'figma-api', FILE_KEY);

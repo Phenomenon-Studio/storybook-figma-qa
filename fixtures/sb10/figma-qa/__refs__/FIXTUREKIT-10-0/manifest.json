@@ -6,7 +6,7 @@
         "name": "Swatch",
         "version": "1",
         "lastModified": "2026-11-21T00:00:00Z",
-        "hash": "72e5af984850aea4"
+        "hash": "74402b1469292ca1"
     },
     "axes": [
         {
@@ -61,7 +61,10 @@
                         "layer": null,
                         "background": null
                     },
-                    "layout": null
+                    "layout": null,
+                    "vars": {
+                        "fill": "1:1"
+                    }
                 },
                 "texts": [],
                 "icons": []
@@ -184,7 +187,10 @@
                         "layer": null,
                         "background": null
                     },
-                    "layout": null
+                    "layout": null,
+                    "vars": {
+                        "fill": "1:1"
+                    }
                 },
                 "texts": [],
                 "icons": []
