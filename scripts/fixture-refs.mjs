@@ -1,7 +1,9 @@
 // Writes the recorded Figma responses the kit's tests serve from a stub, and the committed Figma refs of both
-// fixtures synced from them: one synthetic component set, `Swatch` (Size × Tone). The recordings stand in for Figma,
-// so fixture runs need no token or network; refs are built by the kit's own spec extraction, so they match what a
-// sync of the recordings writes. Re-run after changing the set below: `pnpm build && node scripts/fixture-refs.mjs`.
+// fixtures synced from them: two synthetic component sets, `Swatch` (Size × Tone, Neutral's fill bound to a colour
+// variable) and `Glyph` (one icon instance per variant), plus the variable catalogue naming that variable. The
+// recordings stand in for Figma, so fixture runs need no token or network; refs are built by the kit's own spec
+// extraction, so they match what a sync of the recordings writes.
+// Re-run after changing the sets below: `pnpm build && node scripts/fixture-refs.mjs`.
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { crc32, deflateSync } from 'node:zlib';
@@ -11,14 +13,17 @@ const SCALE = 2;
 const FILE_KEY = 'FIXTUREKIT';
 const VERSION = '1';
 const LAST_MODIFIED = '2026-11-21T00:00:00Z';
-const SET_ID = '10:0';
-const URL = `https://www.figma.com/design/${FILE_KEY}/Fixture-UI-kit?node-id=${SET_ID.replace(':', '-')}`;
 const SIZES = { Small: { side: 24, radius: 4 }, Large: { side: 40, radius: 8 } };
 const TONES = {
     Brand: { r: 59, g: 91, b: 219, a: 1 },
     Neutral: { r: 173, g: 181, b: 189, a: 1 },
     Danger: { r: 224, g: 49, b: 49, a: 1 },
 };
+/** Neutral's fill is bound to this variable; `variables.json` names it. */
+const NEUTRAL_VARIABLE = '1:2';
+/** Glyph variants: a 24×24 frame with one 16×16 icon instance inset 4px, drawn in Brand. */
+const GLYPHS = { Square: 0, Circle: 8 };
+const GLYPH = { frame: 24, side: 16, inset: 4 };
 
 function chunk(type, data) {
     const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
@@ -49,14 +54,18 @@ function png(width, height, rgba) {
     ]);
 }
 
-/** A filled rounded square on transparent, edges anti-aliased by 4×4 supersampling. */
-function roundedSquare(side, radius, color) {
-    const size = side * SCALE;
+/** A filled rounded square on a transparent `frame` (default: the square), inset by `inset`, edges anti-aliased by 4×4 supersampling. */
+function roundedSquare(side, radius, color, frame = side, inset = 0) {
+    const size = frame * SCALE;
+    const [from, to] = [inset * SCALE, (inset + side) * SCALE];
     const r = radius * SCALE;
     const data = Buffer.alloc(size * size * 4);
     const inside = (x, y) => {
-        const cx = Math.min(Math.max(x, r), size - r);
-        const cy = Math.min(Math.max(y, r), size - r);
+        if (x < from || x > to || y < from || y > to) {
+            return false;
+        }
+        const cx = Math.min(Math.max(x, from + r), to - r);
+        const cy = Math.min(Math.max(y, from + r), to - r);
 
         return (x - cx) ** 2 + (y - cy) ** 2 <= r ** 2;
     };
@@ -81,19 +90,56 @@ function figmaColor({ r, g, b, a }) {
     return { r: r / 255, g: g / 255, b: b / 255, a };
 }
 
-const variants = [];
+function setUrl(setId) {
+    return `https://www.figma.com/design/${FILE_KEY}/Fixture-UI-kit?node-id=${setId.replace(':', '-')}`;
+}
+
+function componentSet(id, name, axes, variants) {
+    const right = Math.max(
+        ...variants.map(({ absoluteBoundingBox: box }) => {
+            return box.x + box.width;
+        })
+    );
+    const bottom = Math.max(
+        ...variants.map(({ absoluteBoundingBox: box }) => {
+            return box.y + box.height;
+        })
+    );
+
+    return {
+        id,
+        name,
+        type: 'COMPONENT_SET',
+        blendMode: 'PASS_THROUGH',
+        absoluteBoundingBox: { x: 0, y: 0, width: right, height: bottom },
+        componentPropertyDefinitions: Object.fromEntries(
+            Object.entries(axes).map(([axis, options]) => {
+                return [axis, { type: 'VARIANT', defaultValue: options[0], variantOptions: options }];
+            })
+        ),
+        children: variants.map(({ png: _png, ...node }) => {
+            return node;
+        }),
+    };
+}
+
+const swatches = [];
 let index = 1;
 let y = 0;
 for (const [sizeName, size] of Object.entries(SIZES)) {
     let x = 0;
     for (const [toneName, fill] of Object.entries(TONES)) {
-        variants.push({
+        const paint = { blendMode: 'NORMAL', type: 'SOLID', color: figmaColor(fill) };
+        if (toneName === 'Neutral') {
+            paint.boundVariables = { color: { type: 'VARIABLE_ALIAS', id: `VariableID:${NEUTRAL_VARIABLE}` } };
+        }
+        swatches.push({
             id: `10:${index++}`,
             name: `Size=${sizeName}, Tone=${toneName}`,
             type: 'COMPONENT',
             blendMode: 'PASS_THROUGH',
             absoluteBoundingBox: { x, y, width: size.side, height: size.side },
-            fills: [{ blendMode: 'NORMAL', type: 'SOLID', color: figmaColor(fill) }],
+            fills: [paint],
             cornerRadius: size.radius,
             layoutSizingHorizontal: 'FIXED',
             layoutSizingVertical: 'FIXED',
@@ -105,39 +151,91 @@ for (const [sizeName, size] of Object.entries(SIZES)) {
     y += size.side + 16;
 }
 
-const document = {
-    id: SET_ID,
-    name: 'Swatch',
-    type: 'COMPONENT_SET',
-    blendMode: 'PASS_THROUGH',
-    absoluteBoundingBox: { x: 0, y: 0, width: 168, height: 96 },
-    componentPropertyDefinitions: {
-        Size: { type: 'VARIANT', defaultValue: 'Small', variantOptions: Object.keys(SIZES) },
-        Tone: { type: 'VARIANT', defaultValue: 'Brand', variantOptions: Object.keys(TONES) },
+const glyphs = Object.entries(GLYPHS).map(([iconName, radius], column) => {
+    const x = column * (GLYPH.frame + 16);
+    const icon = { x: x + GLYPH.inset, y: GLYPH.inset, width: GLYPH.side, height: GLYPH.side };
+
+    return {
+        id: `20:${column + 1}`,
+        name: `Icon=${iconName}`,
+        type: 'COMPONENT',
+        blendMode: 'PASS_THROUGH',
+        absoluteBoundingBox: { x, y: 0, width: GLYPH.frame, height: GLYPH.frame },
+        fills: [],
+        layoutSizingHorizontal: 'FIXED',
+        layoutSizingVertical: 'FIXED',
+        children: [
+            {
+                id: `I20:${column + 1};30:${column + 1}`,
+                name: iconName,
+                type: 'INSTANCE',
+                componentId: `30:${column + 1}`,
+                blendMode: 'PASS_THROUGH',
+                absoluteBoundingBox: icon,
+                fills: [],
+                children: [
+                    {
+                        id: `I20:${column + 1};30:${column + 1};31:1`,
+                        name: 'Shape',
+                        type: 'RECTANGLE',
+                        blendMode: 'PASS_THROUGH',
+                        absoluteBoundingBox: icon,
+                        fills: [{ blendMode: 'NORMAL', type: 'SOLID', color: figmaColor(TONES.Brand) }],
+                        cornerRadius: radius,
+                    },
+                ],
+            },
+        ],
+        png: roundedSquare(GLYPH.side, radius, TONES.Brand, GLYPH.frame, GLYPH.inset),
+    };
+});
+
+const sets = [
+    { id: '10:0', variants: swatches, document: componentSet('10:0', 'Swatch', { Size: Object.keys(SIZES), Tone: Object.keys(TONES) }, swatches), components: {} },
+    {
+        id: '20:0',
+        variants: glyphs,
+        document: componentSet('20:0', 'Glyph', { Icon: Object.keys(GLYPHS) }, glyphs),
+        components: Object.fromEntries(
+            Object.keys(GLYPHS).map((iconName, column) => {
+                return [`30:${column + 1}`, { key: `glyph-${column + 1}`, name: `Icons/${iconName}` }];
+            })
+        ),
     },
-    children: variants.map(({ png: _png, ...node }) => {
-        return node;
-    }),
+];
+const entries = Object.fromEntries(
+    sets.map(({ id, document, components }) => {
+        return [id, { document, components, componentSets: {}, schemaVersion: 0, styles: {} }];
+    })
+);
+const nodes = { name: 'Fixture UI kit', lastModified: LAST_MODIFIED, version: VERSION, nodes: entries };
+const variables = {
+    source: { fileKey: FILE_KEY, via: 'scripts/fixture-refs.mjs', updatedAt: LAST_MODIFIED },
+    variables: { [NEUTRAL_VARIABLE]: { collection: 'Tones', type: 'COLOR', name: 'Tone/Neutral' } },
 };
-const entry = { document, components: {}, componentSets: {}, schemaVersion: 0, styles: {} };
-const nodes = { name: 'Fixture UI kit', lastModified: LAST_MODIFIED, version: VERSION, nodes: { [SET_ID]: entry } };
 
 const recordings = path.join(import.meta.dirname, '..', 'packages', 'storybook-figma-qa', 'test', 'figma-api', FILE_KEY);
 rmSync(recordings, { recursive: true, force: true });
 mkdirSync(path.join(recordings, 'images'), { recursive: true });
 writeFileSync(path.join(recordings, 'nodes.json'), `${JSON.stringify(nodes, null, 4)}\n`);
-for (const variant of variants) {
-    writeFileSync(path.join(recordings, 'images', `${variant.id.replace(':', '-')}.png`), variant.png);
+for (const { variants } of sets) {
+    for (const variant of variants) {
+        writeFileSync(path.join(recordings, 'images', `${variant.id.replace(':', '-')}.png`), variant.png);
+    }
 }
 
-const manifest = setManifest(URL, entry, VERSION, LAST_MODIFIED);
 for (const fixture of ['sb10', 'sb11']) {
     const refs = path.join(import.meta.dirname, '..', 'fixtures', fixture, 'figma-qa', '__refs__');
-    const dir = path.join(refs, `${FILE_KEY}-${SET_ID.replace(':', '-')}`);
-    rmSync(dir, { recursive: true, force: true });
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(path.join(dir, 'manifest.json'), `${JSON.stringify(manifest, null, 4)}\n`);
-    for (const variant of variants) {
-        writeFileSync(path.join(dir, `${variant.id.replace(':', '-')}.png`), variant.png);
+    mkdirSync(refs, { recursive: true });
+    writeFileSync(path.join(refs, 'variables.json'), `${JSON.stringify(variables, null, 4)}\n`);
+    for (const { id, variants } of sets) {
+        const manifest = setManifest(setUrl(id), entries[id], VERSION, LAST_MODIFIED);
+        const dir = path.join(refs, `${FILE_KEY}-${id.replace(':', '-')}`);
+        rmSync(dir, { recursive: true, force: true });
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(path.join(dir, 'manifest.json'), `${JSON.stringify(manifest, null, 4)}\n`);
+        for (const variant of variants) {
+            writeFileSync(path.join(dir, `${variant.id.replace(':', '-')}.png`), variant.png);
+        }
     }
 }

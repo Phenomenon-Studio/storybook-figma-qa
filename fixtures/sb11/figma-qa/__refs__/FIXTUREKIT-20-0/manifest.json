@@ -1,0 +1,125 @@
+{
+    "source": {
+        "url": "https://www.figma.com/design/FIXTUREKIT/Fixture-UI-kit?node-id=20-0",
+        "fileKey": "FIXTUREKIT",
+        "nodeId": "20:0",
+        "name": "Glyph",
+        "version": "1",
+        "lastModified": "2026-11-21T00:00:00Z",
+        "hash": "9070149cc29723c6"
+    },
+    "axes": [
+        {
+            "name": "Icon",
+            "options": [
+                "Square",
+                "Circle"
+            ]
+        }
+    ],
+    "booleans": [],
+    "variants": [
+        {
+            "id": "20:1",
+            "name": "Icon=Square",
+            "props": {
+                "Icon": "Square"
+            },
+            "spec": {
+                "root": {
+                    "name": "Icon=Square",
+                    "width": 24,
+                    "height": 24,
+                    "hugWidth": false,
+                    "radius": [
+                        0,
+                        0,
+                        0,
+                        0
+                    ],
+                    "fill": null,
+                    "fillTypes": [],
+                    "opacity": 1,
+                    "stroke": null,
+                    "shadows": [],
+                    "blendMode": null,
+                    "blur": {
+                        "layer": null,
+                        "background": null
+                    },
+                    "layout": null
+                },
+                "texts": [],
+                "icons": [
+                    {
+                        "name": "Square",
+                        "component": "Icons/Square",
+                        "box": {
+                            "x": 4,
+                            "y": 4,
+                            "width": 16,
+                            "height": 16
+                        },
+                        "color": {
+                            "r": 59,
+                            "g": 91,
+                            "b": 219,
+                            "a": 1
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "id": "20:2",
+            "name": "Icon=Circle",
+            "props": {
+                "Icon": "Circle"
+            },
+            "spec": {
+                "root": {
+                    "name": "Icon=Circle",
+                    "width": 24,
+                    "height": 24,
+                    "hugWidth": false,
+                    "radius": [
+                        0,
+                        0,
+                        0,
+                        0
+                    ],
+                    "fill": null,
+                    "fillTypes": [],
+                    "opacity": 1,
+                    "stroke": null,
+                    "shadows": [],
+                    "blendMode": null,
+                    "blur": {
+                        "layer": null,
+                        "background": null
+                    },
+                    "layout": null
+                },
+                "texts": [],
+                "icons": [
+                    {
+                        "name": "Circle",
+                        "component": "Icons/Circle",
+                        "box": {
+                            "x": 4,
+                            "y": 4,
+                            "width": 16,
+                            "height": 16
+                        },
+                        "color": {
+                            "r": 59,
+                            "g": 91,
+                            "b": 219,
+                            "a": 1
+                        }
+                    }
+                ]
+            }
+        }
+    ]
+}

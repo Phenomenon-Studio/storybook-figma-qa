@@ -7,7 +7,7 @@ import type { NodesEntry, NodesResponse } from './set-manifest.ts';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { REFRESH_ENV } from '../constants.ts';
-import { FIGMA_SCALE, figmaSlug, parseFigmaUrl, REFS_DIR, variantSlug } from '../figma/types.ts';
+import { FIGMA_SCALE, figmaSlug, parseFigmaUrl, variantSlug } from '../figma/types.ts';
 import { download, figmaGet, figmaToken, FigmaTokenError } from './figma-api.ts';
 import { readJson } from './json.ts';
 import { setManifest } from './set-manifest.ts';
@@ -19,6 +19,9 @@ export const NODES_CACHE_DIR = 'node_modules/.cache/figma-qa/nodes';
 const COALESCE_MS = 100;
 
 export type SyncedSet = { manifest: FigmaSetManifest; warning: string | null };
+
+/** Where a project keeps refs: `refsDir` is the config's, relative to `root`. */
+export type SyncPaths = { root: string; refsDir: string };
 
 type RawSet = { version: string; lastModified: string; entry: NodesEntry };
 
@@ -54,10 +57,10 @@ async function pngsComplete(dir: string, manifest: FigmaSetManifest | null): Pro
     return present.every(Boolean);
 }
 
-async function readLocal(root: string, url: string): Promise<Local> {
+async function readLocal({ root, refsDir }: SyncPaths, url: string): Promise<Local> {
     const { fileKey, nodeId } = parseFigmaUrl(url);
     const slug = figmaSlug(fileKey, nodeId);
-    const dir = path.join(root, REFS_DIR, slug);
+    const dir = path.join(root, refsDir, slug);
     const manifest = await readJson<FigmaSetManifest>(path.join(dir, 'manifest.json'));
 
     return {
@@ -80,12 +83,12 @@ function staleWarning(local: Local, version: string): string | null {
 }
 
 /** Syncs one file's batch of sets. Every set in the batch settles to its manifest or the batch's error. */
-async function syncFile(root: string, fileKey: string, urls: string[], meta: Meta): Promise<Map<string, SyncedSet>> {
+async function syncFile(paths: SyncPaths, fileKey: string, urls: string[], meta: Meta): Promise<Map<string, SyncedSet>> {
     const token = figmaToken();
     const refresh = process.env[REFRESH_ENV] === '1';
     const locals = await Promise.all(
         urls.map((url) => {
-            return readLocal(root, url);
+            return readLocal(paths, url);
         })
     );
     const served = new Map<string, SyncedSet>();
@@ -232,10 +235,10 @@ export class FigmaSync {
     private readonly sets = new Map<string, Promise<SyncedSet>>();
     private readonly batches = new Map<string, { urls: string[]; done: Promise<Map<string, SyncedSet>> }>();
 
-    private readonly root: string;
+    private readonly paths: SyncPaths;
 
-    constructor(root: string) {
-        this.root = root;
+    constructor(paths: SyncPaths) {
+        this.paths = paths;
     }
 
     private meta: Meta = (fileKey, token) => {
@@ -274,7 +277,7 @@ export class FigmaSync {
                 // Later requests for this file start a new batch.
                 this.batches.delete(fileKey);
 
-                return syncFile(this.root, fileKey, urls, this.meta);
+                return syncFile(this.paths, fileKey, urls, this.meta);
             });
             batch = { urls, done };
             this.batches.set(fileKey, batch);

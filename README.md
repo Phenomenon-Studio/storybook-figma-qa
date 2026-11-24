@@ -4,10 +4,10 @@ Monorepo for `@phenomenon-studio/storybook-figma-qa`, the Figma QA kit: checks S
 
 | Path | Role |
 | --- | --- |
-| `packages/storybook-figma-qa` | The published package: Storybook addon (`./preset`, `./manager`, `./preview`), `./vitest` plugin, `figma-qa` CLI, agent `skills/`. |
+| `packages/storybook-figma-qa` | The published package: Storybook addon (`./preset`, `./manager`, `./preview`), `./vitest` plugin, `./config` (`defineConfig` for an optional `figma-qa.config.ts`), `figma-qa` CLI, agent `skills/`. |
 | `fixtures/sb10` | React + Vite project on Storybook 10.6, wired to the kit by hand. |
 | `fixtures/sb11` | Same on Storybook 11 beta. |
-| `fixtures/*/figma-qa/__refs__` | Committed Figma refs for the fixtures' synthetic `Swatch` set. |
+| `fixtures/*/figma-qa/__refs__` | Committed Figma refs for the fixtures' synthetic `Swatch` and `Glyph` sets, plus `variables.json`. Fixtures have no `figma-qa.config.ts`: the config tests write one per run. |
 | `packages/storybook-figma-qa/test/figma-api` | Recorded Figma REST responses for that set, served by the test stub (`FIGMA_API_URL`). `pnpm build && node scripts/fixture-refs.mjs` rewrites them and the refs synced from them. |
 
 Fixtures get an injected copy of the kit (`injectWorkspacePackages`), so its peers resolve against each fixture's Storybook / Vitest like a real install.

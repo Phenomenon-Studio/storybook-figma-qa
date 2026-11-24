@@ -21,6 +21,7 @@ Every change must hold on `fixtures/sb10` (Storybook 10.6, Vitest 4) **and** `fi
 - **Preview side lives in `definePreview({ addons })`**: CSF Next ignores preset `previewAnnotations`. `definePreviewAddon` comes from `storybook/internal/csf` (the one sanctioned internal import).
 - **Edit user config with magicast** on literal shapes only; any other shape prints the exact snippet and exits 2. `storybook/internal/*` AST APIs changed in 11. Safe/unsafe shape list: ticket 02 `## Answer`.
 - **Vitest setup files register nothing**: `setProjectAnnotations` throws on 11.
+- **Project config reaches the preview as `virtual:figma-qa/config` / `virtual:figma-qa/icons`** from the preset's `viteFinal` (addon-vitest applies it too). Kit entries a user file imports stay out of `optimizeDeps`: a dep discovered mid-run reloads and fails that run.
 - **Agent skills install** with `DISABLE_TELEMETRY=1 npx -y skills@<pinned> add ./node_modules/@phenomenon-studio/storybook-figma-qa/skills --copy -y -a claude-code codex`; without `-a` it writes ~55 agent dirs on machines with no detected agent.
 
 ## Package contract

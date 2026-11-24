@@ -8,6 +8,7 @@ import path from 'node:path';
 import { FIGMA_PROJECT, REFRESH_ENV } from '../constants.ts';
 import { RESULTS_DIR, resultsFile } from '../figma/types.ts';
 import { figmaToken } from '../node/figma-api.ts';
+import { loadProjectConfig } from '../node/config.ts';
 import { readJson } from '../node/json.ts';
 
 type Status = FigmaCellResult['status'];
@@ -159,11 +160,17 @@ function printHuman(summary: ReportSummary): void {
 
 /** Runs the Figma Vitest project and summarizes what it wrote. */
 async function run(options: Options): Promise<ReportSummary> {
+    const root = process.cwd();
+    try {
+        // Rejected before Vitest starts: a typo'd key must not run with defaults.
+        await loadProjectConfig(root);
+    } catch (error) {
+        return failed(message(error));
+    }
     // The browser commands run in this process: sync.ts reads the flag from here.
     if (options.refresh) {
         process.env[REFRESH_ENV] = '1';
     }
-    const root = process.cwd();
     // Only this run's output counts: stale results would mask a story that no longer writes any.
     await rm(path.join(root, RESULTS_DIR), { recursive: true, force: true });
 

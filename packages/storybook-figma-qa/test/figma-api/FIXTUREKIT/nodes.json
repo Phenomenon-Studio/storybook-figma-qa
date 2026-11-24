@@ -12,8 +12,8 @@
                 "absoluteBoundingBox": {
                     "x": 0,
                     "y": 0,
-                    "width": 168,
-                    "height": 96
+                    "width": 152,
+                    "height": 80
                 },
                 "componentPropertyDefinitions": {
                     "Size": {
@@ -83,6 +83,12 @@
                                     "g": 0.7098039215686275,
                                     "b": 0.7411764705882353,
                                     "a": 1
+                                },
+                                "boundVariables": {
+                                    "color": {
+                                        "type": "VARIABLE_ALIAS",
+                                        "id": "VariableID:1:2"
+                                    }
                                 }
                             }
                         ],
@@ -167,6 +173,12 @@
                                     "g": 0.7098039215686275,
                                     "b": 0.7411764705882353,
                                     "a": 1
+                                },
+                                "boundVariables": {
+                                    "color": {
+                                        "type": "VARIABLE_ALIAS",
+                                        "id": "VariableID:1:2"
+                                    }
                                 }
                             }
                         ],
@@ -206,6 +218,161 @@
                 ]
             },
             "components": {},
+            "componentSets": {},
+            "schemaVersion": 0,
+            "styles": {}
+        },
+        "20:0": {
+            "document": {
+                "id": "20:0",
+                "name": "Glyph",
+                "type": "COMPONENT_SET",
+                "blendMode": "PASS_THROUGH",
+                "absoluteBoundingBox": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 64,
+                    "height": 24
+                },
+                "componentPropertyDefinitions": {
+                    "Icon": {
+                        "type": "VARIANT",
+                        "defaultValue": "Square",
+                        "variantOptions": [
+                            "Square",
+                            "Circle"
+                        ]
+                    }
+                },
+                "children": [
+                    {
+                        "id": "20:1",
+                        "name": "Icon=Square",
+                        "type": "COMPONENT",
+                        "blendMode": "PASS_THROUGH",
+                        "absoluteBoundingBox": {
+                            "x": 0,
+                            "y": 0,
+                            "width": 24,
+                            "height": 24
+                        },
+                        "fills": [],
+                        "layoutSizingHorizontal": "FIXED",
+                        "layoutSizingVertical": "FIXED",
+                        "children": [
+                            {
+                                "id": "I20:1;30:1",
+                                "name": "Square",
+                                "type": "INSTANCE",
+                                "componentId": "30:1",
+                                "blendMode": "PASS_THROUGH",
+                                "absoluteBoundingBox": {
+                                    "x": 4,
+                                    "y": 4,
+                                    "width": 16,
+                                    "height": 16
+                                },
+                                "fills": [],
+                                "children": [
+                                    {
+                                        "id": "I20:1;30:1;31:1",
+                                        "name": "Shape",
+                                        "type": "RECTANGLE",
+                                        "blendMode": "PASS_THROUGH",
+                                        "absoluteBoundingBox": {
+                                            "x": 4,
+                                            "y": 4,
+                                            "width": 16,
+                                            "height": 16
+                                        },
+                                        "fills": [
+                                            {
+                                                "blendMode": "NORMAL",
+                                                "type": "SOLID",
+                                                "color": {
+                                                    "r": 0.23137254901960785,
+                                                    "g": 0.3568627450980392,
+                                                    "b": 0.8588235294117647,
+                                                    "a": 1
+                                                }
+                                            }
+                                        ],
+                                        "cornerRadius": 0
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "id": "20:2",
+                        "name": "Icon=Circle",
+                        "type": "COMPONENT",
+                        "blendMode": "PASS_THROUGH",
+                        "absoluteBoundingBox": {
+                            "x": 40,
+                            "y": 0,
+                            "width": 24,
+                            "height": 24
+                        },
+                        "fills": [],
+                        "layoutSizingHorizontal": "FIXED",
+                        "layoutSizingVertical": "FIXED",
+                        "children": [
+                            {
+                                "id": "I20:2;30:2",
+                                "name": "Circle",
+                                "type": "INSTANCE",
+                                "componentId": "30:2",
+                                "blendMode": "PASS_THROUGH",
+                                "absoluteBoundingBox": {
+                                    "x": 44,
+                                    "y": 4,
+                                    "width": 16,
+                                    "height": 16
+                                },
+                                "fills": [],
+                                "children": [
+                                    {
+                                        "id": "I20:2;30:2;31:1",
+                                        "name": "Shape",
+                                        "type": "RECTANGLE",
+                                        "blendMode": "PASS_THROUGH",
+                                        "absoluteBoundingBox": {
+                                            "x": 44,
+                                            "y": 4,
+                                            "width": 16,
+                                            "height": 16
+                                        },
+                                        "fills": [
+                                            {
+                                                "blendMode": "NORMAL",
+                                                "type": "SOLID",
+                                                "color": {
+                                                    "r": 0.23137254901960785,
+                                                    "g": 0.3568627450980392,
+                                                    "b": 0.8588235294117647,
+                                                    "a": 1
+                                                }
+                                            }
+                                        ],
+                                        "cornerRadius": 8
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            "components": {
+                "30:1": {
+                    "key": "glyph-1",
+                    "name": "Icons/Square"
+                },
+                "30:2": {
+                    "key": "glyph-2",
+                    "name": "Icons/Circle"
+                }
+            },
             "componentSets": {},
             "schemaVersion": 0,
             "styles": {}

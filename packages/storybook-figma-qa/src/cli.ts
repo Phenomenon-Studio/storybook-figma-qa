@@ -51,7 +51,7 @@ async function main(argv: string[]): Promise<number> {
     if (name === 'doctor') {
         const { doctor } = await import('./commands/doctor.ts');
 
-        return doctor();
+        return await doctor();
     }
 
     console.error(`figma-qa ${name}: not implemented yet`);

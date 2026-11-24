@@ -4,6 +4,8 @@ import { COMPARE_GLOBAL } from './constants.ts';
 import { LOAD_SETS_HOOK, resolveStory } from './figma/story.ts';
 import { FIGMA_TAG } from './figma/types.ts';
 
+export { FigmaIcon } from './icon.tsx';
+export type { FigmaIconProps } from './icon.tsx';
 export { FigmaMatrix } from './matrix.tsx';
 export type { FigmaMatrixProps, RenderCell } from './matrix.tsx';
 export type {

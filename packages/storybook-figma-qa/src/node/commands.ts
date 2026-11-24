@@ -6,7 +6,8 @@ import type { FigmaVariableCatalog } from '../figma/variables.ts';
 import type { LoadedSets } from '../figma/story.ts';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { REFS_DIR, refPng, RESULTS_DIR, resultsFile, variantSlug } from '../figma/types.ts';
+import { refPng, RESULTS_DIR, resultsFile, variantSlug } from '../figma/types.ts';
+import { loadProjectConfig } from './config.ts';
 import { readJson } from './json.ts';
 import { pixelDiff } from './pixel-diff.ts';
 import { FigmaSync } from './sync.ts';
@@ -20,9 +21,10 @@ const syncs = new WeakMap<object, FigmaSync>();
  */
 export const figmaEnsureSets: BrowserCommand<[urls: string[]]> = async ({ project }, urls): Promise<LoadedSets> => {
     const root = project.config.root;
+    const { refsDir } = (await loadProjectConfig(root)).config;
     let sync = syncs.get(project.vitest);
     if (!sync) {
-        sync = new FigmaSync(root);
+        sync = new FigmaSync({ root, refsDir });
         syncs.set(project.vitest, sync);
     }
     const synced = await Promise.all(
@@ -41,7 +43,7 @@ export const figmaEnsureSets: BrowserCommand<[urls: string[]]> = async ({ projec
             }
         }
     });
-    const catalog = await readJson<FigmaVariableCatalog>(path.join(root, REFS_DIR, 'variables.json'));
+    const catalog = await readJson<FigmaVariableCatalog>(path.join(root, refsDir, 'variables.json'));
 
     return { manifests, variables: catalog?.variables ?? {}, warnings: [...warnings] };
 };
@@ -71,8 +73,9 @@ export const figmaPixelDiff: BrowserCommand<[request: PixelDiffRequest]> = async
     request
 ): Promise<PixelDiffResponse> => {
     const root = project.config.root;
+    const { refsDir } = (await loadProjectConfig(root)).config;
     const variant = variantSlug(request.variantId);
-    const figma = refPng(path.basename(request.slug), request.variantId);
+    const figma = refPng(refsDir, path.basename(request.slug), request.variantId);
     const cell = `${RESULTS_DIR}/${path.basename(request.storyId)}-${variant}`;
     const actual = `${cell}-actual.png`;
     const screenshot = Buffer.from(request.screenshot, 'base64');

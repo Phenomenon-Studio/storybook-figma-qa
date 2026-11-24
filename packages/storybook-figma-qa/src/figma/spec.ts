@@ -7,7 +7,7 @@ import type { FigmaIssue, FigmaIssueValue, FigmaLayout, FigmaShadow, FigmaSpec, 
 import type { FigmaVariable } from './variables.ts';
 import { backgroundOf, contrastRatio, deltaEOK, distance, nearestToken, over, toHsl, tokenColor, toRgba } from './colors.ts';
 import { kitIconFile, kitIconOf } from './icons.ts';
-import { tokenName } from './variables.ts';
+import { projectConfig } from './project.ts';
 
 /** CSS px. Sub-pixel layout and font metrics differ between Figma and Chromium; 1px absorbs that, not real drift. */
 const PX = 1;
@@ -1015,7 +1015,7 @@ function boundColor(color: Rgba, id: string): { note: string; token: string | nu
             token: null,
         };
     }
-    const token = tokenName(variable);
+    const token = projectConfig().tokenName(variable);
     const kit = tokenColor(token);
     if (!kit) {
         return {

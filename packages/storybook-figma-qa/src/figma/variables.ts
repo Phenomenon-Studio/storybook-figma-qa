@@ -9,17 +9,3 @@ export type FigmaVariableCatalog = {
     source: { fileKey: string; via: string; updatedAt: string };
     variables: Record<string, FigmaVariable>;
 };
-
-/**
- * The CSS colour token a Figma colour variable is expected as: the full path kebab-cased, `%` dropped, with the token
- * prefix: `Surface/control` → `--color-surface-control`. Project-overridable later (`tokenName`).
- */
-export function tokenName(variable: FigmaVariable): string {
-    const kebab = variable.name
-        .toLowerCase()
-        .replaceAll('%', '')
-        .replaceAll(/[^a-z\d]+/g, '-')
-        .replaceAll(/^-|-$/g, '');
-
-    return `--color-${kebab}`;
-}

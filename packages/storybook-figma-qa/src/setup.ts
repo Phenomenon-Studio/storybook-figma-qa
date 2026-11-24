@@ -16,6 +16,7 @@ import type {
 import { afterEach, beforeEach, expect } from 'vitest';
 import { commands, page } from 'vitest/browser';
 import { setVariables, figmaSpecMismatches, textMasks } from './figma/spec.ts';
+import { projectConfig } from './figma/project.ts';
 import { LOAD_SETS_HOOK, resolveStory } from './figma/story.ts';
 import { FIGMA_SCALE, FIGMA_TAG, figmaIssueText, refPng } from './figma/types.ts';
 
@@ -29,9 +30,6 @@ declare module 'vitest/browser' {
 
 // The preview loader reads refs through this: preview code can't import Vitest.
 Object.assign(globalThis, { [LOAD_SETS_HOOK]: commands.figmaEnsureSets });
-
-// Pilot (Button md, 2x): text anti-aliasing alone differs on ~3 % of pixels (Figma's text renderer ≠ Chromium's).
-const DEFAULT_MAX_DIFF_RATIO = 0.05;
 
 // Motion frozen so the one screenshot is the settled frame.
 const STABILIZE_CSS = `
@@ -149,7 +147,8 @@ type FigmaStory = { tags: string[]; parameters: StoryParameters };
 /** Measures every cell of the story's matrix blocks. */
 async function checkCells(storyId: string, story: FigmaStory, resolved: ResolvedStory): Promise<FigmaBlockResult[]> {
     const matrix = story.parameters.figmaMatrix;
-    const maxRatio = matrix?.maxDiffRatio ?? DEFAULT_MAX_DIFF_RATIO;
+    const config = projectConfig();
+    const maxRatio = matrix?.maxDiffRatio ?? config.maxDiffRatio;
     const isIgnored = (issue: FigmaIssue) => {
         return (
             matrix?.ignore?.some((rule) => {
@@ -182,7 +181,7 @@ async function checkCells(storyId: string, story: FigmaStory, resolved: Resolved
                     approval: null,
                     spec: { mismatches: [], ignored: [] },
                     image: { mismatchedPixels: null, ratio: null, maxRatio, error: null },
-                    files: { figma: refPng(slug, variant.id), actual: null, diff: null },
+                    files: { figma: refPng(config.refsDir, slug, variant.id), actual: null, diff: null },
                 });
                 continue;
             }

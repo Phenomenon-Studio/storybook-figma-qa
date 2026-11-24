@@ -3,9 +3,7 @@
 // Tokens are read from the stylesheets the preview loaded, so the project lists no token files.
 // Comparison itself stays in sRGB bytes (spec.ts): even per channel, unlike hue on near-greys.
 import type { Rgba } from './types.ts';
-
-/** Colour token custom properties. Project-configurable later (`tokens.prefix`). */
-const TOKEN_PREFIX = '--color-';
+import { projectConfig } from './project.ts';
 
 const canvas = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
 
@@ -115,13 +113,15 @@ function sheetRules(sheet: CSSStyleSheet): CSSRuleList | null {
 
 /** Every colour token in the loaded stylesheets, aliases resolved; later declarations win, as in the cascade. */
 function parseTokens(): Token[] {
-    const raw = new Map<string, string>();
+    // Colour tokens are the custom properties with the configured prefix; aliases may point at any custom property.
+    const prefix = projectConfig().tokens.prefix;
+    const all = new Map<string, string>();
     for (const sheet of document.styleSheets) {
         const rules = sheetRules(sheet);
         for (const style of rules ? declarations(rules) : []) {
             for (const property of style) {
-                if (property.startsWith(TOKEN_PREFIX)) {
-                    raw.set(property, style.getPropertyValue(property).trim());
+                if (property.startsWith('--')) {
+                    all.set(property, style.getPropertyValue(property).trim());
                 }
             }
         }
@@ -131,12 +131,15 @@ function parseTokens(): Token[] {
         if (!reference) {
             return value;
         }
-        const next = raw.get(reference);
+        const next = all.get(reference);
 
         return next && depth < 10 ? resolve(next, depth + 1) : null;
     };
     const tokens: Token[] = [];
-    for (const [name, value] of raw) {
+    for (const [name, value] of all) {
+        if (!name.startsWith(prefix)) {
+            continue;
+        }
         const resolved = resolve(value);
         if (resolved) {
             tokens.push({ name, alias: value.startsWith('var('), rgba: toRgba(resolved) });

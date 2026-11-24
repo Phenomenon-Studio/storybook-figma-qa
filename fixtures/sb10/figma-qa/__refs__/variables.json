@@ -1,0 +1,14 @@
+{
+    "source": {
+        "fileKey": "FIXTUREKIT",
+        "via": "scripts/fixture-refs.mjs",
+        "updatedAt": "2026-11-21T00:00:00Z"
+    },
+    "variables": {
+        "1:2": {
+            "collection": "Tones",
+            "type": "COLOR",
+            "name": "Tone/Neutral"
+        }
+    }
+}

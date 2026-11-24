@@ -1,8 +1,6 @@
 // The results model and the Figma data it is measured against. Shared by the browser checks (setup.ts), the Node
 // commands and the CLI. Browser-safe: no Node imports.
 
-/** Committed refs, relative to the project root: one dir per component set (manifest + one PNG per variant). */
-export const REFS_DIR = 'figma-qa/__refs__';
 /** Run output, relative to the project root: per-story results JSON under `results/`, cell images beside it. */
 export const RESULTS_DIR = 'figma-qa/.results';
 /** Per-story results JSON, relative to the project root. */
@@ -10,9 +8,12 @@ export function resultsFile(storyId: string): string {
     return `${RESULTS_DIR}/results/${storyId}.json`;
 }
 
-/** Figma's 2x export of one variant, relative to the project root. */
-export function refPng(slug: string, variantId: string): string {
-    return `${REFS_DIR}/${slug}/${variantSlug(variantId)}.png`;
+/**
+ * Figma's 2x export of one variant, relative to the project root. `refsDir` (config) holds one dir per component set:
+ * manifest + one PNG per variant.
+ */
+export function refPng(refsDir: string, slug: string, variantId: string): string {
+    return `${refsDir}/${slug}/${variantSlug(variantId)}.png`;
 }
 
 /** Figma export scale; the browser context runs at the same deviceScaleFactor. */
@@ -124,7 +125,7 @@ export type FigmaVariant = {
     spec: FigmaSpec;
 };
 
-/** One component set, as cached in `${REFS_DIR}/<slug>/manifest.json` next to one PNG per variant. */
+/** One component set, as cached in `<refsDir>/<slug>/manifest.json` next to one PNG per variant. */
 export type FigmaSetManifest = {
     /**
      * `version`: the Figma file version synced (compared with `/meta` to warn that Figma changed since). `hash`: of the
