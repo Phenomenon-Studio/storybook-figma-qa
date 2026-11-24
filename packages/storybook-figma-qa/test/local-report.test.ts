@@ -2,7 +2,6 @@
 // how filters narrow them, which browser it picks (a fake Docker on PATH serves the "pinned image" with the project's
 // own Playwright), phase timings, the doctor-blocked state, opening the report and the running Storybook's panel URL.
 import type { ChildProcess } from 'node:child_process';
-import type { Fixture } from './cli.ts';
 import { spawn } from 'node:child_process';
 import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import net from 'node:net';
@@ -10,7 +9,7 @@ import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { fixtureDir, FIXTURES, HOST_WARNING, json, report, runCli } from './cli.ts';
+import { fixtureDir, FIXTURES, HOST_WARNING, inTerminal, json, report, runCli } from './cli.ts';
 
 const FAKE_DOCKER = fileURLToPath(new URL('./fake-docker', import.meta.url));
 
@@ -259,34 +258,6 @@ describe.each(FIXTURES)('figma-qa report on a project init has not set up, in fi
         expect(summary.errors[0]).toMatch(/No "figma-qa" Vitest project.*run `figma-qa init`/);
     });
 });
-
-/**
- * Runs the CLI behind a pseudo-terminal: `script` gives it a TTY stdout, as in a developer's shell. `script` needs a
- * plain file as stdin, not a pipe, so stdin is /dev/null.
- */
-function inTerminal(fixture: Fixture, args: string[], env: Record<string, string>): Promise<string> {
-    const command = ['pnpm', 'exec', 'figma-qa', ...args];
-    const scriptArgs =
-        process.platform === 'darwin' ? ['-q', '/dev/null', ...command] : ['-qec', command.join(' '), '/dev/null'];
-    const { FIGMA_TOKEN: _token, FIGMA_API_URL: _api, ...base } = process.env;
-    const child = spawn('script', scriptArgs, {
-        cwd: fixtureDir(fixture),
-        env: { ...base, ...env },
-        stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    let stdout = '';
-    child.stdout.on('data', (chunk: Buffer) => {
-        stdout += chunk.toString();
-    });
-
-    // Exit 1 or 2 is a verdict here, not a test failure.
-    return new Promise((resolve, reject) => {
-        child.on('error', reject);
-        child.on('close', () => {
-            resolve(stdout);
-        });
-    });
-}
 
 describe.skipIf(process.platform === 'win32').each(FIXTURES)('figma-qa report opens the report in fixtures/%s', (fixture) => {
     let dir: string;

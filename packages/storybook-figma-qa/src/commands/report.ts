@@ -3,30 +3,64 @@
 // then reads the per-story results they wrote and turns them into one verdict. Exit 0: every cell passes, is approved
 // or has no code equivalent; 1: any cell differs from Figma; 2: a harness or setup error (blocked setup, unreachable
 // browser, misconfigured story, uncached set, story that failed to render or load).
-import type { TestModule } from 'vitest/node';
+import type { TestModule, Vitest } from 'vitest/node';
 import type { FigmaRunSummary, FigmaStoryResult, FigmaStorySummary, RunPhase } from '../figma/types.ts';
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { BROWSER_WS_ENV, REFRESH_ENV, STORIES_KEY } from '../constants.ts';
-import { REPORT_DIR, RESULTS_DIR, resultsFile, RUN_FILE } from '../figma/types.ts';
+import { CI_SUMMARY_FILE, REPORT_DIR, RESULTS_DIR, resultsFile, RUN_FILE } from '../figma/types.ts';
 import { failingCells } from '../figma/triage.ts';
 import { countCells, noCells, runExitCode, storyVerdict } from '../figma/verdict.ts';
 import { pickBrowser } from '../node/browser.ts';
+import { ciSummary } from '../node/ci-summary.ts';
 import { figmaToken } from '../node/figma-api.ts';
 import { addonBlocked, openFigmaProject } from '../node/figma-project.ts';
+import { CONFIG_FILE } from '../figma/config.ts';
 import { loadProjectConfig } from '../node/config.ts';
 import { readJson } from '../node/json.ts';
 import { countIds, unnamedVariables, unnamedWarning } from '../node/variables.ts';
 import { parseFilters, scanStoryFile, selectStories } from '../figma/story-scan.ts';
 import { panelUrl, runningStorybook } from '../node/storybook-url.ts';
 
-type Options = { json: boolean; refresh: boolean; hostBrowser: boolean; open: boolean; filters: string[] };
+type Options = {
+    json: boolean;
+    refresh: boolean;
+    hostBrowser: boolean;
+    open: boolean;
+    ci: boolean;
+    /** Git base of `--changed`; `true` without one: staged, unstaged and untracked files only. */
+    changed: string | true | null;
+    filters: string[];
+};
 
 function parseArgs(argv: string[]): Options | string {
-    const options: Options = { json: false, refresh: false, hostBrowser: false, open: true, filters: [] };
-    for (const arg of argv) {
-        if (arg === '--json') {
+    const options: Options = {
+        json: false,
+        refresh: false,
+        hostBrowser: false,
+        open: true,
+        ci: false,
+        changed: null,
+        filters: [],
+    };
+    for (let index = 0; index < argv.length; index++) {
+        const arg = argv[index] ?? '';
+        const next = argv[index + 1];
+        if (arg === '--changed') {
+            // The base is optional: a following argument that isn't an option is it, so filters go before the flag.
+            if (next !== undefined && !next.startsWith('-')) {
+                options.changed = next;
+                index++;
+            } else {
+                options.changed = true;
+            }
+        } else if (arg.startsWith('--changed=')) {
+            options.changed = arg.slice('--changed='.length) || true;
+        } else if (arg === '--ci') {
+            options.ci = true;
+            options.open = false;
+        } else if (arg === '--json') {
             options.json = true;
         } else if (arg === '--refresh') {
             options.refresh = true;
@@ -254,12 +288,60 @@ function openFile(file: string): void {
     child.unref();
 }
 
+const NONE_AFFECTED = 'No Figma stories affected.';
+
+/**
+ * Why `--changed` can't diff here, or null. Checked before Vitest: Vitest 4 ignores git's exit code, so an unknown base
+ * would read as "nothing changed" and pass.
+ */
+function changedBlocked(root: string, changed: string | true): Promise<string | null> {
+    const args =
+        changed === true
+            ? ['rev-parse', '--show-toplevel']
+            : ['rev-parse', '--verify', '--quiet', `${changed}^{commit}`];
+
+    return new Promise((resolve) => {
+        execFile('git', args, { cwd: root }, (error) => {
+            if (!error) {
+                resolve(null);
+            } else {
+                resolve(
+                    changed === true
+                        ? '--changed needs a git repository.'
+                        : `--changed: ${changed} is not a commit in this repository (shallow clone? fetch it first).`
+                );
+            }
+        });
+    });
+}
+
+/**
+ * Story files the change reaches through their imports (Vitest's `changed`). What reaches every story without being
+ * imported (Storybook's config, the committed refs, the kit config) reruns them all, like Vitest's own config files.
+ */
+async function affectedSpecifications(root: string, vitest: Vitest) {
+    const { refsDir } = (await loadProjectConfig(root)).config;
+    vitest.config.forceRerunTriggers.push(
+        path.join(root, '.storybook', '**'),
+        path.join(root, refsDir, '**'),
+        path.join(root, CONFIG_FILE)
+    );
+
+    return vitest.getRelevantTestSpecifications();
+}
+
 /** Runs the Figma Vitest project on the scanned story files and summarizes what they wrote. */
 async function run(root: string, options: Options, state: RunState): Promise<Ran> {
     const noMatch = `No Figma story matches ${options.filters.join(' ')}.`;
     const blocked = await timed(state.timings, 'doctor', async () => {
         if (options.refresh && !figmaToken()) {
             return '--refresh fetches from Figma and needs FIGMA_TOKEN.';
+        }
+        if (options.changed) {
+            const changed = await changedBlocked(root, options.changed);
+            if (changed) {
+                return changed;
+            }
         }
         try {
             // Rejected before Vitest starts: a typo'd key must not run with defaults.
@@ -281,7 +363,7 @@ async function run(root: string, options: Options, state: RunState): Promise<Ran
     }
     try {
         const browser = await timed(state.timings, 'browser', () => {
-            return pickBrowser(root, { hostBrowser: options.hostBrowser });
+            return pickBrowser(root, { hostBrowser: options.hostBrowser, ci: options.ci });
         });
         if (browser.kind === 'image') {
             process.env[BROWSER_WS_ENV] = browser.wsEndpoint;
@@ -315,6 +397,8 @@ async function run(root: string, options: Options, state: RunState): Promise<Ran
                             },
                         },
                     ],
+                    // Vitest's own `changed`: git diff against the base, then each story file's import graph.
+                    ...(options.changed ? { changed: options.changed } : {}),
                 },
                 { stdout: options.json ? process.stderr : process.stdout, stderr: process.stderr }
             );
@@ -327,7 +411,9 @@ async function run(root: string, options: Options, state: RunState): Promise<Ran
             const files = await timed(state.timings, 'collect', async () => {
                 // Vitest's own include (addon-vitest's stories globs), narrowed to files that can hold a Figma story:
                 // collecting a story file costs a transform and a browser import.
-                const specifications = await vitest.globTestSpecifications();
+                const specifications = options.changed
+                    ? await affectedSpecifications(root, vitest)
+                    : await vitest.globTestSpecifications();
                 const scanned = await Promise.all(
                     specifications.map(async (specification) => {
                         return scanStoryFile(specification.moduleId, await readFile(specification.moduleId, 'utf8'));
@@ -343,6 +429,9 @@ async function run(root: string, options: Options, state: RunState): Promise<Ran
             state.files = files.map((file) => {
                 return path.relative(root, file);
             });
+            if (files.length === 0 && options.changed) {
+                return { summary: summaryOf(state, { warnings: [...state.warnings, NONE_AFFECTED] }), results: [] };
+            }
             if (files.length === 0) {
                 return options.filters.length > 0
                     ? failedRun(state, noMatch)
@@ -392,10 +481,16 @@ export async function report(argv: string[]): Promise<number> {
     // Again with the report phase timed and the panel found: run.json stays equal to the printed summary.
     await writeSummary(root, summary);
 
+    if (options.ci) {
+        await writeFile(path.join(root, CI_SUMMARY_FILE), ciSummary(summary, { changed: Boolean(options.changed) }));
+    }
     if (options.json) {
         console.log(JSON.stringify(summary, null, 4));
     } else {
         printHuman(summary);
+        if (options.ci) {
+            console.log(`Markdown summary: ${CI_SUMMARY_FILE}`);
+        }
     }
     if (options.open && interactive) {
         openFile(path.join(root, REPORT_DIR, 'index.html'));

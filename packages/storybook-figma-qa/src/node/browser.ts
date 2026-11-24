@@ -7,7 +7,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
 import path from 'node:path';
-import { BROWSER_PORT, BROWSER_PORT_ENV } from '../constants.ts';
+import { BROWSER_PORT, BROWSER_PORT_ENV, BROWSER_WS_ENV } from '../constants.ts';
 
 export type Browser =
     | { kind: 'image'; wsEndpoint: string }
@@ -116,9 +116,15 @@ function composeUp(file: string): Promise<void> {
     });
 }
 
-export async function pickBrowser(root: string, options: { hostBrowser: boolean }): Promise<Browser> {
+export async function pickBrowser(root: string, options: { hostBrowser: boolean; ci: boolean }): Promise<Browser> {
     if (options.hostBrowser) {
         return { kind: 'host', reason: '--host-browser' };
+    }
+    if (options.ci) {
+        // CI never starts Docker: the job runs the pinned image as a service container and names its endpoint.
+        const wsEndpoint = process.env[BROWSER_WS_ENV];
+
+        return wsEndpoint ? { kind: 'image', wsEndpoint } : { kind: 'host', reason: `--ci without ${BROWSER_WS_ENV}` };
     }
     if (!(await dockerRunning())) {
         return { kind: 'host', reason: 'Docker is not running' };

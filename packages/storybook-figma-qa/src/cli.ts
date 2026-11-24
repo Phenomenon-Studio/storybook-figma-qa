@@ -21,8 +21,10 @@ const USAGE = [
         return `  ${name.padEnd(10)} ${help}`;
     }),
     '',
-    'report [filters...] [--json] [--refresh] [--host-browser] [--no-open]',
-    '  filters: component names, or story-id globs (`*`, `?`, `--`)',
+    'report [filters...] [--changed [base]] [--ci] [--json] [--refresh] [--host-browser] [--no-open]',
+    '  filters: component names, or story-id globs (`*`, `?`, `--`); put them before --changed',
+    '  --changed [base]: only Figma stories whose imports changed since base (default: uncommitted changes)',
+    '  --ci: no open, no Docker; writes figma-qa/.results/summary.md beside the HTML report',
     'init [--yes] [--dry-run] [--next]',
     '  --next: bootstrap Storybook 11 beta when the project has no Storybook',
     'variables [<file> | -]',

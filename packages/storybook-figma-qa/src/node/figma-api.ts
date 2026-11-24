@@ -6,6 +6,9 @@ import path from 'node:path';
 
 const DEFAULT_API = 'https://api.figma.com';
 
+/** How a rejected token's error starts: the `--ci` summary turns it into "rotate the secret". */
+export const TOKEN_REJECTED = 'Figma rejected FIGMA_TOKEN';
+
 /** Figma refused the token: a setup error, whatever is cached. */
 export class FigmaTokenError extends Error {
     override name = 'FigmaTokenError';
@@ -37,7 +40,7 @@ export async function figmaGet<T>(endpoint: string, token: string): Promise<T> {
     }
     if (response.status === 401 || response.status === 403) {
         throw new FigmaTokenError(
-            `Figma rejected FIGMA_TOKEN (${response.status} on ${route}): check the token and that its owner can open the file.`
+            `${TOKEN_REJECTED} (${response.status} on ${route}): check the token and that its owner can open the file.`
         );
     }
     if (response.status === 429) {

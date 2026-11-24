@@ -374,5 +374,7 @@ export type RunPhase = (typeof RUN_PHASES)[number];
 
 /** The run summary, relative to the project root. */
 export const RUN_FILE = `${RESULTS_DIR}/run.json`;
+/** `report --ci`'s markdown summary for the PR comment, relative to the project root. */
+export const CI_SUMMARY_FILE = `${RESULTS_DIR}/summary.md`;
 /** The HTML report: a self-contained directory (index.html plus the images it shows), relative to the project root. */
 export const REPORT_DIR = `${RESULTS_DIR}/report`;

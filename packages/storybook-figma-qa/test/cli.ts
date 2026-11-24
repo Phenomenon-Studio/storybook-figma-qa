@@ -1,5 +1,5 @@
 // Runs the real `figma-qa` binary the way a consumer does, inside a fixture project.
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -107,4 +107,32 @@ export async function storyResult(fixture: Fixture, file: string | null): Promis
     }
 
     return JSON.parse(await readFile(path.join(fixtureDir(fixture), file), 'utf8')) as StoryResult;
+}
+
+/**
+ * Runs the CLI behind a pseudo-terminal: `script` gives it a TTY stdout, as in a developer's shell. `script` needs a
+ * plain file as stdin, not a pipe, so stdin is /dev/null. Resolves with stdout.
+ */
+export function inTerminal(fixture: Fixture, args: string[], env: Record<string, string>): Promise<string> {
+    const command = ['pnpm', 'exec', 'figma-qa', ...args];
+    const scriptArgs =
+        process.platform === 'darwin' ? ['-q', '/dev/null', ...command] : ['-qec', command.join(' '), '/dev/null'];
+    const { FIGMA_TOKEN: _token, FIGMA_API_URL: _api, ...base } = process.env;
+    const child = spawn('script', scriptArgs, {
+        cwd: fixtureDir(fixture),
+        env: { ...base, ...env },
+        stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    child.stdout.on('data', (chunk: Buffer) => {
+        stdout += chunk.toString();
+    });
+
+    // Exit 1 or 2 is a verdict here, not a test failure.
+    return new Promise((resolve, reject) => {
+        child.on('error', reject);
+        child.on('close', () => {
+            resolve(stdout);
+        });
+    });
 }

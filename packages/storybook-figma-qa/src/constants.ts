@@ -14,7 +14,7 @@ export const REFRESH_ENV = 'FIGMA_QA_REFRESH';
 export const DEV_ROUTE = '/__figma-qa';
 /**
  * Set by `figma-qa report` when the pinned browser image runs: `figmaQa()` connects to this Playwright server instead
- * of launching the host's Chromium.
+ * of launching the host's Chromium. Under `--ci` the workflow sets it to its browser service container.
  */
 export const BROWSER_WS_ENV = 'FIGMA_QA_BROWSER_WS';
 /** Host port of the pinned browser's Playwright server; tests move it off the default. */
