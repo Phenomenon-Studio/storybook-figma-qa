@@ -31,6 +31,7 @@ jobs:
         runs-on: ubuntu-latest
         outputs:
             run: ${{ steps.scope.outputs.run }}
+            reason: ${{ steps.scope.outputs.reason }}
         steps:
             - id: token
               env:
@@ -42,8 +43,9 @@ jobs:
                       echo "run=false" >> "$GITHUB_OUTPUT"
                   elif [ -z "$FIGMA_TOKEN" ]; then
                       # Fork PRs land here too: GitHub withholds secrets from them.
-                      echo "::notice::FIGMA_TOKEN secret is not set (or not passed by the caller): Figma QA skipped"
-                      echo "run=false" >> "$GITHUB_OUTPUT"
+                      reason="The \`FIGMA_TOKEN\` secret is not set (or not passed by the caller)."
+                      echo "::notice::Figma QA skipped: $reason"
+                      { echo "run=false"; echo "reason=$reason"; } >> "$GITHUB_OUTPUT"
                   else
                       echo "run=true" >> "$GITHUB_OUTPUT"
                   fi
@@ -55,18 +57,20 @@ jobs:
             - id: scope
               env:
                   RUN: ${{ steps.token.outputs.run }}
+                  REASON: ${{ steps.token.outputs.reason }}
                   PATHS: ${{ inputs.paths }}
                   BASE: ${{ github.event.pull_request.base.sha }}
               run: |
                   if [ "$RUN" != true ] || [ -z "$PATHS" ]; then
-                      echo "run=$RUN" >> "$GITHUB_OUTPUT"
+                      { echo "run=$RUN"; echo "reason=$REASON"; } >> "$GITHUB_OUTPUT"
                       exit 0
                   fi
                   # Word splitting is the input's format: one pathspec per word.
                   # shellcheck disable=SC2086
                   if git diff --quiet "$BASE...HEAD" -- $PATHS; then
-                      echo "::notice::No change under the paths input: Figma QA skipped"
-                      echo "run=false" >> "$GITHUB_OUTPUT"
+                      reason="The PR changes nothing under the workflow's \`paths\` input."
+                      echo "::notice::Figma QA skipped: $reason"
+                      { echo "run=false"; echo "reason=$reason"; } >> "$GITHUB_OUTPUT"
                   else
                       echo "run=true" >> "$GITHUB_OUTPUT"
                   fi
@@ -76,16 +80,17 @@ jobs:
         needs: gate
         if: needs.gate.outputs.run == 'true'
         runs-on: ubuntu-latest
-        # One run per PR: two pushes racing the comment lookup would post two sticky comments.
         concurrency:
-            group: figma-qa-${{ github.repository }}-${{ github.event.pull_request.number }}
+            group: figma-qa-report-${{ github.repository }}-${{ github.event.pull_request.number }}
             cancel-in-progress: true
+        # Runs the PR's code with FIGMA_TOKEN, so no write access: the comment job posts.
         permissions:
             contents: read
             # The kit installs from GitHub Packages with this run's GITHUB_TOKEN.
             packages: read
-            # The sticky comment.
-            pull-requests: write
+        outputs:
+            summary: ${{ steps.summary.outputs.summary }}
+            artifact-url: ${{ steps.artifact.outputs.artifact-url }}
         defaults:
             run:
                 shell: bash
@@ -120,13 +125,21 @@ jobs:
                       echo "::error::Figma QA installs with pnpm-lock.yaml or package-lock.json at the repo root; found neither"
                       exit 2
                   fi
+                  # The project's Node: its own version file, else the repo's, else current LTS.
+                  for file in "$PROJECT/.nvmrc" "$PROJECT/.node-version" .nvmrc .node-version; do
+                      if [ -f "$file" ]; then
+                          echo "node-file=$file" >> "$GITHUB_OUTPUT"
+                          break
+                      fi
+                  done
             - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0, pinned: job holds FIGMA_TOKEN
               if: steps.pm.outputs.name == 'pnpm'
               with:
                   version: ${{ steps.pm.outputs.pnpm-version }}
             - uses: actions/setup-node@v5
               with:
-                  node-version: lts/*
+                  node-version: ${{ steps.pm.outputs.node-file == '' && 'lts/*' || '' }}
+                  node-version-file: ${{ steps.pm.outputs.node-file }}
                   cache: ${{ steps.pm.outputs.name }}
             # The project's `.npmrc` (written by `figma-qa init`) maps the scope to GitHub Packages; this adds the
             # auth line, read from the environment so the token never lands on disk.
@@ -160,22 +173,45 @@ jobs:
                   path: ${{ inputs.working-directory }}/figma-qa/.results/report
                   retention-days: 14
                   if-no-files-found: ignore
-            - name: Sticky comment
+            # The CLI's `CI_SUMMARY_FILE`: rename them together.
+            - id: summary
               if: ${{ !cancelled() }}
-              env:
+              run: |
+                  file="$PROJECT/figma-qa/.results/summary.md"
+                  if [ -f "$file" ]; then
+                      delimiter="figma-qa-$(openssl rand -hex 16)"
+                      { echo "summary<<$delimiter"; cat "$file"; echo "$delimiter"; } >> "$GITHUB_OUTPUT"
+                  fi
+
+    comment:
+        name: Figma QA comment
+        needs: [gate, report]
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.gate.result == 'success' }}
+        runs-on: ubuntu-latest
+        # Two pushes racing the lookup below would post two sticky comments.
+        concurrency:
+            group: figma-qa-comment-${{ github.repository }}-${{ github.event.pull_request.number }}
+            cancel-in-progress: true
+        permissions:
+            pull-requests: write
+        steps:
+            - env:
                   GH_TOKEN: ${{ github.token }}
                   REPO: ${{ github.repository }}
                   PR: ${{ github.event.pull_request.number }}
-                  REPORTED: ${{ steps.report.outcome != 'skipped' }}
-                  ARTIFACT_URL: ${{ steps.artifact.outputs.artifact-url }}
+                  RAN: ${{ needs.gate.outputs.run }}
+                  REASON: ${{ needs.gate.outputs.reason }}
+                  SUMMARY: ${{ needs.report.outputs.summary }}
+                  ARTIFACT_URL: ${{ needs.report.outputs.artifact-url }}
                   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-              # The marker and summary path are the CLI's `CI_MARKER` and `CI_SUMMARY_FILE`: rename them together.
+              # The marker is the CLI's `CI_MARKER`: rename them together.
               run: |
                   marker='<!-- figma-qa -->'
-                  summary="$PROJECT/figma-qa/.results/summary.md"
                   body="$RUNNER_TEMP/figma-qa-comment.md"
-                  if [ "$REPORTED" = true ] && [ -f "$summary" ]; then
-                      cp "$summary" "$body"
+                  if [ "$RAN" != true ]; then
+                      printf '%s\n## Figma QA: skipped\n\n%s\n' "$marker" "$REASON" > "$body"
+                  elif [ -n "$SUMMARY" ]; then
+                      printf '%s\n' "$SUMMARY" > "$body"
                   else
                       # Install or setup failed, or the CLI stopped before writing its summary.
                       printf '%s\n## Figma QA: harness or setup error (not a design verdict)\n\nThe report did not run to its summary; see the job log.\n' "$marker" > "$body"
@@ -193,7 +229,14 @@ jobs:
                       --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\"))) | .id")
                   id=${ids%%$'\n'*}
                   payload=$(jq -n --rawfile body "$body" '{ body: $body }')
-                  if [ -n "$id" ]; then
+                  if [ "$RAN" != true ]; then
+                      # A skip only overwrites an older result, which would otherwise read as current. Fork PRs get a
+                      # read-only token: the old comment stays, with a warning here.
+                      if [ -n "$id" ]; then
+                          gh api -X PATCH "repos/$REPO/issues/comments/$id" --input - <<< "$payload" > /dev/null ||
+                              echo "::warning::Could not mark the Figma QA comment as skipped (read-only token on a fork PR?)"
+                      fi
+                  elif [ -n "$id" ]; then
                       gh api -X PATCH "repos/$REPO/issues/comments/$id" --input - <<< "$payload" > /dev/null
                   else
                       gh api "repos/$REPO/issues/$PR/comments" --input - <<< "$payload" > /dev/null
