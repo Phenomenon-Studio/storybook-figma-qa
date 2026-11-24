@@ -271,4 +271,4 @@ Bump `packages/storybook-figma-qa/package.json` `version`, merge, then publish a
 
 Any other tag/version/pre-release combination fails before publishing.
 
-[`nightly.yml`](.github/workflows/nightly.yml) runs `figma-qa report --refresh` in `fixtures/sb11` against live Figma with the `FIGMA_TOKEN` repo secret (skipped with a notice when unset). PR CI never sees a token.
+[`nightly.yml`](.github/workflows/nightly.yml) runs `figma-qa report --refresh` in `fixtures/sb11` against live Figma with the `FIGMA_TOKEN` repo secret (skipped with a notice when unset), in the pinned Playwright image the CLI starts with Docker, and uploads the HTML report as the `figma-qa-report` artifact. PR CI never sees a token.

@@ -48,11 +48,19 @@ jobs:
             - run: pnpm build
             # `figma-qa` bin only links once dist/cli.js exists.
             - run: pnpm install --frozen-lockfile --offline
-            # No --host-browser: committed refs are captured in the kit-pinned Playwright image, so
-            # host Chromium pixels would fail spuriously. The browser service container joins this
-            # job once the kit pins that image.
+            # No --ci: without it the CLI starts the pinned Playwright image itself (`docker compose`,
+            # tag from the installed playwright), so pixels match the committed refs. A `services:`
+            # container can't: it takes neither a command (`run-server`) nor a step-computed tag.
+            # Under CI=true nothing opens.
             - name: figma-qa report --refresh
               working-directory: fixtures/sb11
               env:
                   FIGMA_TOKEN: ${{ secrets.FIGMA_TOKEN }}
-              run: pnpm exec figma-qa report --refresh --ci
+              run: pnpm exec figma-qa report --refresh
+            - uses: actions/upload-artifact@v4
+              if: always()
+              with:
+                  name: figma-qa-report
+                  path: fixtures/sb11/figma-qa/.results/report
+                  retention-days: 14
+                  if-no-files-found: ignore
