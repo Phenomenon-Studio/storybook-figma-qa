@@ -2,7 +2,8 @@
 // Storybook reads results and refs from. Added by the Storybook preset's `viteFinal`; addon-vitest applies
 // `viteFinal` too, so Storybook and `figma-qa report` see the same modules.
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { Plugin } from 'vite';
+import type { Plugin, ResolvedConfig } from 'vite';
+import { isIP } from 'node:net';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { DEV_ROUTE } from '../constants.ts';
@@ -25,13 +26,51 @@ function send(response: ServerResponse, status: number, type: string, body: stri
     response.end(body);
 }
 
-async function readBody(request: IncomingMessage): Promise<string> {
+/** A story's set URLs fit easily; anything bigger isn't the preview loader. */
+const MAX_BODY = 64 * 1024;
+
+async function readBody(request: IncomingMessage): Promise<string | null> {
     const chunks: Buffer[] = [];
+    let size = 0;
     for await (const chunk of request) {
+        size += (chunk as Buffer).length;
+        if (size > MAX_BODY) {
+            return null;
+        }
         chunks.push(chunk as Buffer);
     }
 
     return Buffer.concat(chunks).toString('utf8');
+}
+
+/**
+ * The route runs before Vite's own host and CORS checks, so it makes them itself: only the Storybook page may call
+ * it. The Host must be local, an IP, or one Vite allows (DNS rebinding), and the browser must not mark the request
+ * cross-site; POST must be JSON, which a cross-site form or simple fetch can't send without a preflight.
+ */
+function allowed(request: IncomingMessage, server: ResolvedConfig['server']): boolean {
+    const site = request.headers['sec-fetch-site'];
+    if (site && site !== 'same-origin' && site !== 'none') {
+        return false;
+    }
+    if (request.method === 'POST' && !request.headers['content-type']?.startsWith('application/json')) {
+        return false;
+    }
+    if (!request.headers.host || !URL.canParse(`http://${request.headers.host}`)) {
+        return false;
+    }
+    const host = new URL(`http://${request.headers.host}`).hostname.replace(/^\[|\]$/g, '');
+    if (host === 'localhost' || host.endsWith('.localhost') || isIP(host) !== 0) {
+        return true;
+    }
+    const hosts = server.allowedHosts;
+    if (hosts === true) {
+        return true;
+    }
+
+    return (hosts ?? []).some((entry) => {
+        return entry.startsWith('.') ? host === entry.slice(1) || host.endsWith(entry) : host === entry;
+    });
 }
 
 /** `GET files/<project path>`: a PNG or JSON under the refs or results dir, nothing else in the project. */
@@ -60,7 +99,8 @@ async function serveFile(root: string, pathname: string, response: ServerRespons
  * Storybook see refs a report just updated.
  */
 async function serveSets(root: string, request: IncomingMessage, response: ServerResponse) {
-    const urls = JSON.parse(await readBody(request)) as unknown;
+    const body = await readBody(request);
+    const urls = body === null ? null : (JSON.parse(body) as unknown);
     if (
         !Array.isArray(urls) ||
         !urls.every((url) => {
@@ -92,17 +132,21 @@ export function figmaQaVitePlugin(): Plugin {
         configureServer(server) {
             server.middlewares.use(DEV_ROUTE, (request, response, next) => {
                 const { pathname } = new URL(request.url ?? '/', 'http://localhost');
-                let handled: Promise<void> | null = null;
-                if (request.method === 'GET' && pathname.startsWith('/files/')) {
-                    handled = serveFile(root, pathname.slice('/files'.length), response);
-                } else if (request.method === 'POST' && pathname === '/sets') {
-                    handled = serveSets(root, request, response);
-                }
-                if (!handled) {
+                const file = request.method === 'GET' && pathname.startsWith('/files/');
+                const sets = request.method === 'POST' && pathname === '/sets';
+                if (!file && !sets) {
                     next();
 
                     return;
                 }
+                if (!allowed(request, server.config.server)) {
+                    send(response, 403, 'text/plain', 'Figma QA dev route: same-origin requests only.');
+
+                    return;
+                }
+                const handled = file
+                    ? serveFile(root, pathname.slice('/files'.length), response)
+                    : serveSets(root, request, response);
                 handled.catch((error: unknown) => {
                     send(response, 500, 'text/plain', error instanceof Error ? error.message : String(error));
                 });
