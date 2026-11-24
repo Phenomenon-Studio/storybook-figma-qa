@@ -52,6 +52,16 @@ Positional filters intersect the scanned files: a filter with `*`, `?` or `--` i
 
 `--ci` is the PR workflow's mode: it opens nothing and never starts Docker. The browser is the workflow's service container when `FIGMA_QA_BROWSER_WS` names its endpoint, else host Chromium with the usual warning. Beside the HTML report it writes `figma-qa/.results/summary.md`, the sticky comment's body: the `<!-- figma-qa -->` marker, the verdict, a per-story table of pass / fail / approved / missing cells and triage counts, and harness and setup errors (and `harness` cells) labelled "not a design verdict"; a rejected token adds "rotate the `FIGMA_TOKEN` repository secret".
 
+## `figma-qa scaffold`
+
+`figma-qa scaffold <figma-url...> --story <path/Component.stories.tsx> [--dry-run]` turns UI-kit nodes into a starter Figma story. Each URL may be a page, section, frame or one component set; every `COMPONENT_SET` beneath it is collected, in URL order then document order. It needs a live `FIGMA_TOKEN` and makes one `/nodes` call per Figma file.
+
+- **File**: only the kit-owned sibling `<Component>.figma.stories.tsx` is written; the story at `--story` is read, never edited. Its meta title plus `/Figma` is the title (no sibling: the path under `src/`), `tags: ['figma', '!autodocs']`, and `component` and the CSF Next `preview` come from the sibling's own imports (no sibling: `.storybook/preview` if it uses `definePreview`).
+- **Entries**: one `parameters.design` entry, one `figmaMatrix.blocks` entry and one `renderCell` stub per set. The name is the set name's last `/` segment with the component's name stripped, in kebab-case (`Button/Button Icon` → `icon`); a clash gets `-2`, `-3` and a warning. The layout is written out: `columns` is `State`, else the axis with the most options; `sections` is `Size` when present and not the columns, else `null`.
+- **Stubs**: each renderer returns `null` under a `TODO(figma-qa)` comment, so `figma-qa report` lists every cell as missing and exits 0 until the bodies are written.
+- **Re-runs** append the sets the file doesn't link yet (matched by file key and node id) and change nothing else: renamed entries, their order and hand-written renderers stay. A linked set Figma no longer has is a warning; deleting it is the author's call. A file whose `design` entries, matrix story or top-level `renderCell` object aren't literals exits 2 with the lines to add by hand.
+- **Cache**: the fetched sets go to the local raw cache, so the first report syncs them without another `/nodes` call.
+
 ## Reading the output
 
 Every command writes results to stdout and progress or diagnostics to stderr. It exits 0 (ok), 1 (design failure, `report` only) or 2 (harness or setup error). The examples below are real runs in `fixtures/sb11`, shortened where a line repeats. Each new command or flag adds its example here (AGENTS.md).
@@ -200,6 +210,41 @@ Each line is one step:
 - **`plan`**: init would act, but can't yet (it waits on a step before it).
 
 A re-run on a set-up project prints only `ok` lines. If a config has a shape init won't edit, init prints `figma-qa init: one file needs this edit by hand, then re-run init:` and the exact snippet on stderr, then exits 2.
+
+### `figma-qa scaffold`
+
+```text
+figma-qa scaffold: wrote src/Button.figma.stories.tsx (2 sets added)
++ swatch  Swatch (10:0)  columns Tone, sections Size
++ glyph   Glyph (20:0)  columns Icon, no sections
+next: rename each entry to the code's variant and write its renderCell; until then `figma-qa report Button` reports its cells missing
+```
+
+- **`wrote <file> (N sets added)`**: the Figma story was created or appended to.
+- **`+ <entry>  <set> (<node id>)  columns …, sections …`**: one line per added set: the design entry name it got, Figma's set name and node id, and the layout written for its block.
+- **`warn  <entry>: …`**: a name clash renamed the entry (`would also be named swatch; renamed swatch-2`), a linked set is `no longer a component set in Figma`, or a URL `holds no component set`. Warnings never change the exit code.
+- **`already links every set; nothing to add`**: a re-run found nothing new and wrote nothing.
+
+With `--dry-run` it prints a unified diff of the Figma story instead of writing it (`--- /dev/null` for a new file), then the same lines under `dry run, <file> not written (N sets to add)`:
+
+```text
+--- a/src/Button.figma.stories.tsx
++++ b/src/Button.figma.stories.tsx
+@@ -12,6 +12,7 @@
+     parameters: {
+         design: [
+             { name: 'swatch', type: 'figma', url: 'https://www.figma.com/design/FIXTUREKIT/Fixture-UI-kit?node-id=10-0' },
++            { name: 'glyph', type: 'figma', url: 'https://www.figma.com/design/FIXTUREKIT/Fixture-UI-kit?node-id=20-0' },
+         ],
+     },
+ });
+@@ -22,6 +23,10 @@
+…
+figma-qa scaffold: dry run, src/Button.figma.stories.tsx not written (1 set to add)
++ glyph  Glyph (20:0)  columns Icon, no sections
+```
+
+Without a token it prints ``figma-qa scaffold: needs FIGMA_TOKEN, as it reads the UI kit live from Figma. Run `figma-qa init` to set it up, or export FIGMA_TOKEN.`` on stderr and exits 2. A file it can't edit prints `figma-qa scaffold: cannot edit <file>: <reason>. Add each set by hand:` on stderr, the lines to add on stdout, and exits 2.
 
 ### `figma-qa variables`
 

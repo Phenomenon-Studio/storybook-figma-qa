@@ -27,6 +27,8 @@ const USAGE = [
     '  --ci: no open, no Docker; writes figma-qa/.results/summary.md beside the HTML report',
     'init [--yes] [--dry-run] [--next]',
     '  --next: bootstrap Storybook 11 beta when the project has no Storybook',
+    'scaffold <figma-url...> --story <path/Component.stories.tsx> [--dry-run]',
+    '  every component set under the URLs → design entries in the sibling <Component>.figma.stories.tsx; re-runs append',
     'variables [<file> | -]',
     '  no argument: print the use_figma script naming unnamed variable ids; <file> or - (stdin): merge its output',
 ].join('\n');
@@ -73,6 +75,12 @@ async function main(argv: string[]): Promise<number> {
         const { variables } = await import('./commands/variables.ts');
 
         return await variables(rest);
+    }
+
+    if (name === 'scaffold') {
+        const { scaffold } = await import('./commands/scaffold.ts');
+
+        return await scaffold(rest);
     }
 
     console.error(`figma-qa ${name}: not implemented yet`);

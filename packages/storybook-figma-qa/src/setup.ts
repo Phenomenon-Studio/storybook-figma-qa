@@ -307,14 +307,8 @@ async function checkCells(storyId: string, story: FigmaStory, resolved: Resolved
                 files: diff.files,
             });
         }
-        if (
-            cells.every((cell) => {
-                return cell.status === 'missing';
-            })
-        ) {
-            // A stubbed renderCell must fail visibly, not pass as "nothing in code".
-            throw new Error(`Matrix block "${name}" rendered no cells: renderCell returned null for every variant.`);
-        }
+        // A block with every cell missing (a scaffold's stubbed renderCell) is not an error: the report lists each
+        // variant as missing, which is the visible "not written yet".
         blocks.push({
             set: { name, set: manifest.source.name, url, version: manifest.source.version },
             layout: block.layout,

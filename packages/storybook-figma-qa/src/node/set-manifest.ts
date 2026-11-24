@@ -13,7 +13,7 @@ type Effect = {
     radius: number;
     spread?: number;
 };
-type FigmaNode = {
+export type FigmaNode = {
     id: string;
     name: string;
     type: string;
@@ -424,6 +424,17 @@ export function subtreeHash(entry: NodesEntry): string {
     return createHash('sha256').update(JSON.stringify(entry)).digest('hex').slice(0, 16);
 }
 
+/** A component set's VARIANT properties in Figma's order, each with its options in Figma's order. */
+export function variantAxes(set: Pick<FigmaNode, 'componentPropertyDefinitions'>): FigmaSetManifest['axes'] {
+    return Object.entries(set.componentPropertyDefinitions ?? {})
+        .filter(([, definition]) => {
+            return definition.type === 'VARIANT';
+        })
+        .map(([key, definition]) => {
+            return { name: propertyName(key), options: definition.variantOptions ?? [] };
+        });
+}
+
 /** A set's manifest from its `/nodes` entry, stamped with the file version it came from. */
 export function setManifest(url: string, entry: NodesEntry, version: string, lastModified: string): FigmaSetManifest {
     const set = entry.document;
@@ -456,13 +467,7 @@ export function setManifest(url: string, entry: NodesEntry, version: string, las
 
     return {
         source: { url, fileKey, nodeId, name: set.name, version, lastModified, hash: subtreeHash(entry) },
-        axes: definitions
-            .filter(([, definition]) => {
-                return definition.type === 'VARIANT';
-            })
-            .map(([key, definition]) => {
-                return { name: propertyName(key), options: definition.variantOptions ?? [] };
-            }),
+        axes: variantAxes(set),
         booleans: definitions
             .filter(([, definition]) => {
                 return definition.type === 'BOOLEAN';

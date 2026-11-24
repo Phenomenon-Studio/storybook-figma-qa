@@ -24,7 +24,20 @@ export type SyncedSet = { manifest: FigmaSetManifest; warning: string | null };
 /** `offline`: serve committed refs only, never call Figma (a running Storybook reads; only a report run syncs). */
 export type SyncPaths = { root: string; refsDir: string; offline?: boolean };
 
-type RawSet = { version: string; lastModified: string; entry: NodesEntry };
+/** A set's raw `/nodes` entry and the file version it came from, as kept in the local cache. */
+export type RawSet = { version: string; lastModified: string; entry: NodesEntry };
+
+/** Where the local cache keeps a set's raw `/nodes` entry. */
+function rawSetFile(root: string, fileKey: string, nodeId: string): string {
+    return path.join(root, NODES_CACHE_DIR, `${figmaSlug(fileKey, nodeId)}.json`);
+}
+
+/** Keeps a set's raw `/nodes` entry in the local cache: `scaffold` warms it, so a first sync skips `/nodes`. */
+export async function writeRawSet(root: string, fileKey: string, nodeId: string, raw: RawSet): Promise<void> {
+    const file = rawSetFile(root, fileKey, nodeId);
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(file, JSON.stringify(raw));
+}
 
 type Local = {
     url: string;
@@ -69,7 +82,7 @@ async function readLocal({ root, refsDir }: SyncPaths, url: string): Promise<Loc
         nodeId,
         slug,
         dir,
-        rawFile: path.join(root, NODES_CACHE_DIR, `${slug}.json`),
+        rawFile: rawSetFile(root, fileKey, nodeId),
         manifest,
         complete: await pngsComplete(dir, manifest),
     };
@@ -170,8 +183,7 @@ async function syncFile(paths: SyncPaths, fileKey: string, urls: string[], meta:
                 throw new Error(`Figma has no node ${local.nodeId} in file ${fileKey} (${local.url}).`);
             }
             const raw: RawSet = { version: nodes.version, lastModified: nodes.lastModified, entry };
-            await mkdir(path.dirname(local.rawFile), { recursive: true });
-            await writeFile(local.rawFile, JSON.stringify(raw));
+            await writeRawSet(paths.root, fileKey, local.nodeId, raw);
             raws.set(local.url, raw);
         }
     }
