@@ -20,6 +20,9 @@ const USAGE = [
     ...Object.entries(COMMANDS).map(([name, help]) => {
         return `  ${name.padEnd(10)} ${help}`;
     }),
+    '',
+    'report [filters...] [--json] [--refresh] [--host-browser] [--no-open]',
+    '  filters: component names, or story-id globs (`*`, `?`, `--`)',
 ].join('\n');
 
 function isCommand(name: string): name is Command {

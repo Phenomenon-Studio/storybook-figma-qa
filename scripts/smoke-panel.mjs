@@ -100,7 +100,8 @@ try {
         await page.getByText('Not a Figma story.').waitFor({ timeout: 10_000 });
         console.log('ok: "Figma diff" panel visible');
     } else {
-        const run = spawnSync('pnpm', ['exec', 'figma-qa', 'report', 'SwatchDrift.figma', '--json'], {
+        // Host Chromium: the panel is the subject here, not the pinned image a CI runner's Docker would pull.
+        const run = spawnSync('pnpm', ['exec', 'figma-qa', 'report', 'SwatchDrift.figma', '--host-browser', '--json'], {
             cwd: target,
             encoding: 'utf8',
         });

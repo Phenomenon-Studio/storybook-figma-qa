@@ -1,29 +1,37 @@
-// `figma-qa report`: runs the project's Figma Vitest project, then reads the per-story results it wrote and turns
-// them into one verdict. Exit 0: every cell passes, is approved or has no code equivalent; 1: any cell differs from
-// Figma; 2: a harness or setup error (misconfigured story, uncached set, story that failed to render or load).
+// `figma-qa report`: the one local command. doctor → browser → collect → tests (Figma sync happens lazily inside) →
+// report → open, never prompting. Runs the project's Figma Vitest project on the story files a static scan finds,
+// then reads the per-story results they wrote and turns them into one verdict. Exit 0: every cell passes, is approved
+// or has no code equivalent; 1: any cell differs from Figma; 2: a harness or setup error (blocked setup, unreachable
+// browser, misconfigured story, uncached set, story that failed to render or load).
 import type { TestModule } from 'vitest/node';
-import type { FigmaRunSummary, FigmaStoryResult, FigmaStorySummary } from '../figma/types.ts';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import type { FigmaRunSummary, FigmaStoryResult, FigmaStorySummary, RunPhase } from '../figma/types.ts';
+import { spawn } from 'node:child_process';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { FIGMA_PROJECT, REFRESH_ENV } from '../constants.ts';
+import { BROWSER_WS_ENV, REFRESH_ENV, STORIES_KEY } from '../constants.ts';
 import { REPORT_DIR, RESULTS_DIR, resultsFile, RUN_FILE } from '../figma/types.ts';
 import { countCells, noCells, runExitCode, storyVerdict } from '../figma/verdict.ts';
+import { pickBrowser } from '../node/browser.ts';
 import { figmaToken } from '../node/figma-api.ts';
+import { addonBlocked, openFigmaProject } from '../node/figma-project.ts';
 import { loadProjectConfig } from '../node/config.ts';
 import { readJson } from '../node/json.ts';
+import { parseFilters, scanStoryFile, selectStories } from '../figma/story-scan.ts';
+import { panelUrl, runningStorybook } from '../node/storybook-url.ts';
 
-/** Every run uses the host's Chromium until the pinned browser image is wired in: pixels aren't comparable to CI. */
-const HOST_BROWSER = true;
-
-type Options = { json: boolean; refresh: boolean; filters: string[] };
+type Options = { json: boolean; refresh: boolean; hostBrowser: boolean; open: boolean; filters: string[] };
 
 function parseArgs(argv: string[]): Options | string {
-    const options: Options = { json: false, refresh: false, filters: [] };
+    const options: Options = { json: false, refresh: false, hostBrowser: false, open: true, filters: [] };
     for (const arg of argv) {
         if (arg === '--json') {
             options.json = true;
         } else if (arg === '--refresh') {
             options.refresh = true;
+        } else if (arg === '--host-browser') {
+            options.hostBrowser = true;
+        } else if (arg === '--no-open') {
+            options.open = false;
         } else if (arg.startsWith('-')) {
             return `unknown option ${arg}`;
         } else {
@@ -34,28 +42,61 @@ function parseArgs(argv: string[]): Options | string {
     return options;
 }
 
+type Timings = FigmaRunSummary['timings'];
+
+async function timed<T>(timings: Timings, phase: RunPhase, work: () => Promise<T>): Promise<T> {
+    const start = performance.now();
+    try {
+        return await work();
+    } finally {
+        // A phase may run in steps (collect: open Vitest, then scan).
+        timings[phase] = (timings[phase] ?? 0) + Math.round(performance.now() - start);
+    }
+}
+
 /** This run's results for a story; null when the story wrote none. */
 async function readResult(root: string, storyId: string): Promise<FigmaStoryResult | null> {
     return readJson<FigmaStoryResult>(path.join(root, resultsFile(storyId)));
-}
-
-function failed(error: string): FigmaRunSummary {
-    return { exitCode: 2, hostBrowser: HOST_BROWSER, cells: noCells(), stories: [], errors: [error], warnings: [] };
 }
 
 function message(error: unknown): string {
     return (error as { message?: string })?.message ?? String(error);
 }
 
+/** What the run knows before any story ran; every exit path builds its summary from it. */
+type RunState = { hostBrowser: boolean; files: string[]; warnings: string[]; timings: Timings };
+
+function summaryOf(state: RunState, fields: Partial<FigmaRunSummary>): FigmaRunSummary {
+    return {
+        exitCode: 0,
+        hostBrowser: state.hostBrowser,
+        cells: noCells(),
+        files: state.files,
+        stories: [],
+        errors: [],
+        warnings: state.warnings,
+        timings: state.timings,
+        panelUrl: null,
+        ...fields,
+    };
+}
+
+type Ran = { summary: FigmaRunSummary; results: FigmaStoryResult[] };
+
+function failedRun(state: RunState, error: string): Ran {
+    return { summary: summaryOf(state, { exitCode: 2, errors: [error] }), results: [] };
+}
+
 async function summarize(
     root: string,
+    state: RunState,
     modules: readonly TestModule[],
     unhandled: readonly unknown[]
-): Promise<{ summary: FigmaRunSummary; results: FigmaStoryResult[] }> {
+): Promise<Ran> {
     const stories: FigmaStorySummary[] = [];
     const results: FigmaStoryResult[] = [];
     const errors = unhandled.map(message);
-    const warnings = new Set<string>();
+    const warnings = new Set<string>(state.warnings);
     for (const module of modules) {
         const file = path.relative(root, module.moduleId);
         for (const error of module.errors()) {
@@ -92,9 +133,8 @@ async function summarize(
             });
         }
     }
-    const summary: FigmaRunSummary = {
+    const summary = summaryOf(state, {
         exitCode: runExitCode(stories, errors),
-        hostBrowser: HOST_BROWSER,
         cells: countCells(
             results.flatMap((result) => {
                 return result.blocks;
@@ -103,7 +143,7 @@ async function summarize(
         stories,
         errors,
         warnings: [...warnings],
-    };
+    });
 
     return { summary, results };
 }
@@ -121,10 +161,31 @@ async function writeRun(root: string, summary: FigmaRunSummary, results: FigmaSt
     } catch (error) {
         written = { ...summary, exitCode: 2, errors: [...summary.errors, `HTML report: ${message(error)}`] };
     }
-    await mkdir(path.join(root, RESULTS_DIR), { recursive: true });
-    await writeFile(path.join(root, RUN_FILE), `${JSON.stringify(written, null, 4)}\n`);
+    await writeSummary(root, written);
 
     return written;
+}
+
+async function writeSummary(root: string, summary: FigmaRunSummary) {
+    await mkdir(path.join(root, RESULTS_DIR), { recursive: true });
+    await writeFile(path.join(root, RUN_FILE), `${JSON.stringify(summary, null, 4)}\n`);
+}
+
+/** The panel opens on the first story that needs a look: an error or a fail, else the first story. */
+async function findPanel(root: string, summary: FigmaRunSummary): Promise<string | null> {
+    const stories = summary.stories.filter((story) => {
+        return story.storyId !== null;
+    });
+    const story =
+        stories.find((candidate) => {
+            return candidate.verdict !== 'pass';
+        }) ?? stories[0];
+    if (!story?.storyId) {
+        return null;
+    }
+    const base = await runningStorybook(root);
+
+    return base ? panelUrl(base, story.storyId) : null;
 }
 
 function printHuman(summary: FigmaRunSummary): void {
@@ -144,31 +205,74 @@ function printHuman(summary: FigmaRunSummary): void {
     console.log(
         `\nfigma-qa report: ${pass} pass, ${fail} fail, ${approved} approved, ${missing} missing (exit ${summary.exitCode})`
     );
-    if (summary.stories.length > 0) {
-        console.log(`HTML report: ${REPORT_DIR}/index.html`);
+    const timings = Object.entries(summary.timings).map(([phase, ms]) => {
+        return `${phase} ${(ms / 1000).toFixed(1)} s`;
+    });
+    console.log(`Timings: ${timings.join(', ')}`);
+    console.log(`HTML report: ${REPORT_DIR}/index.html`);
+    if (summary.panelUrl) {
+        console.log(`Figma diff panel: ${summary.panelUrl}`);
     }
 }
 
-type Ran = { summary: FigmaRunSummary; results: FigmaStoryResult[] };
-
-function failedRun(error: string): Ran {
-    return { summary: failed(error), results: [] };
+/** Opens the report with `$BROWSER` (`none` opens nothing), else the platform's opener. Fire and forget. */
+function openFile(file: string): void {
+    const browser = process.env.BROWSER;
+    if (browser === 'none') {
+        return;
+    }
+    const [command, args]: [string, string[]] = browser
+        ? [browser, [file]]
+        : process.platform === 'darwin'
+          ? ['open', [file]]
+          : process.platform === 'win32'
+            ? ['cmd', ['/c', 'start', '""', file]]
+            : ['xdg-open', [file]];
+    const child = spawn(command, args, { detached: true, stdio: 'ignore' });
+    child.on('error', () => {
+        // A missing opener leaves the report where the summary says it is.
+    });
+    child.unref();
 }
 
-/** Runs the Figma Vitest project and summarizes what it wrote. */
-async function run(root: string, options: Options): Promise<Ran> {
-    if (options.refresh && !figmaToken()) {
-        return failedRun('--refresh fetches from Figma and needs FIGMA_TOKEN.');
+/** Runs the Figma Vitest project on the scanned story files and summarizes what they wrote. */
+async function run(root: string, options: Options, state: RunState): Promise<Ran> {
+    const noMatch = `No Figma story matches ${options.filters.join(' ')}.`;
+    const blocked = await timed(state.timings, 'doctor', async () => {
+        if (options.refresh && !figmaToken()) {
+            return '--refresh fetches from Figma and needs FIGMA_TOKEN.';
+        }
+        try {
+            // Rejected before Vitest starts: a typo'd key must not run with defaults.
+            await loadProjectConfig(root);
+        } catch (error) {
+            return message(error);
+        }
+
+        // Before the browser: an unwired project must not start the pinned image first. The Vitest project check
+        // needs Vitest's config, which reads the browser choice, so it waits for collect.
+        return addonBlocked(root);
+    });
+    if (blocked) {
+        return failedRun(state, blocked);
     }
-    try {
-        // Rejected before Vitest starts: a typo'd key must not run with defaults.
-        await loadProjectConfig(root);
-    } catch (error) {
-        return failedRun(message(error));
-    }
-    // The browser commands run in this process: sync.ts reads the flag from here.
+    // The browser commands and `figmaQa()` run in this process: they read these from here.
     if (options.refresh) {
         process.env[REFRESH_ENV] = '1';
+    }
+    try {
+        const browser = await timed(state.timings, 'browser', () => {
+            return pickBrowser(root, { hostBrowser: options.hostBrowser });
+        });
+        if (browser.kind === 'image') {
+            process.env[BROWSER_WS_ENV] = browser.wsEndpoint;
+        } else {
+            delete process.env[BROWSER_WS_ENV];
+            state.hostBrowser = true;
+            state.warnings.push(`Host Chromium (${browser.reason}): pixels are not comparable to CI.`);
+        }
+    } catch (error) {
+        return failedRun(state, message(error));
     }
 
     // `--json` keeps stdout for the summary: Vitest's output and anything plugins log go to stderr.
@@ -178,38 +282,70 @@ async function run(root: string, options: Options): Promise<Ran> {
     if (options.json) {
         process.stdout.write = process.stderr.write.bind(process.stderr) as typeof process.stdout.write;
     }
-    let ran: Ran;
     try {
-        const { startVitest } = await import('vitest/node');
         // Filled by the reporter at the end of the run.
-        const result: { summary?: ReturnType<typeof summarize> } = {};
-        const vitest = await startVitest(
-            'test',
-            options.filters,
-            {
-                watch: false,
-                project: [FIGMA_PROJECT],
-                reporters: [
-                    ...(options.json ? [] : ['default' as const]),
-                    {
-                        onTestRunEnd: (modules, unhandled) => {
-                            result.summary = summarize(root, modules, unhandled);
+        const finished: { ran?: Promise<Ran> } = {};
+        const opened = await timed(state.timings, 'collect', () => {
+            return openFigmaProject(
+                {
+                    reporters: [
+                        ...(options.json ? [] : ['default' as const]),
+                        {
+                            onTestRunEnd: (modules, unhandled) => {
+                                finished.ran = summarize(root, state, modules, unhandled);
+                            },
                         },
-                    },
-                ],
-            },
-            {},
-            { stdout: options.json ? process.stderr : process.stdout, stderr: process.stderr }
-        );
-        await vitest.close();
-        ran = (await result.summary) ?? failedRun('Vitest did not run.');
+                    ],
+                },
+                { stdout: options.json ? process.stderr : process.stdout, stderr: process.stderr }
+            );
+        });
+        if ('blocked' in opened) {
+            return failedRun(state, opened.blocked);
+        }
+        const { vitest } = opened;
+        try {
+            const files = await timed(state.timings, 'collect', async () => {
+                // Vitest's own include (addon-vitest's stories globs), narrowed to files that can hold a Figma story:
+                // collecting a story file costs a transform and a browser import.
+                const specifications = await vitest.globTestSpecifications();
+                const scanned = await Promise.all(
+                    specifications.map(async (specification) => {
+                        return scanStoryFile(specification.moduleId, await readFile(specification.moduleId, 'utf8'));
+                    })
+                );
+                const selection = selectStories(scanned, parseFilters(options.filters));
+                vitest.provide(STORIES_KEY, selection.ids);
+
+                return selection.files.map((file) => {
+                    return file.file;
+                });
+            });
+            state.files = files.map((file) => {
+                return path.relative(root, file);
+            });
+            if (files.length === 0) {
+                return options.filters.length > 0
+                    ? failedRun(state, noMatch)
+                    : { summary: summaryOf(state, { warnings: [...state.warnings, 'No Figma stories found.'] }), results: [] };
+            }
+            await timed(state.timings, 'tests', () => {
+                return vitest.start(files);
+            });
+        } finally {
+            await vitest.close();
+        }
+        const ran = (await finished.ran) ?? failedRun(state, 'Vitest did not run.');
+        if (options.filters.length > 0 && ran.summary.stories.length === 0 && ran.summary.errors.length === 0) {
+            return failedRun(state, noMatch);
+        }
+
+        return ran;
     } catch (error) {
-        ran = failedRun(message(error));
+        return failedRun(state, message(error));
     } finally {
         process.stdout.write = writeStdout;
     }
-
-    return ran;
 }
 
 export async function report(argv: string[]): Promise<number> {
@@ -219,17 +355,31 @@ export async function report(argv: string[]): Promise<number> {
 
         return 2;
     }
+    // Only a person at a terminal gets a browser tab: agents, scripts and CI read the summary.
+    const interactive = process.stdout.isTTY && !process.env.CI;
     const root = process.cwd();
     // Only this run's output counts: stale results would mask a story that no longer writes any, and the panel would
     // show a run that a setup error replaced.
     await rm(path.join(root, RESULTS_DIR), { recursive: true, force: true });
-    const ran = await run(root, options);
-    const summary = await writeRun(root, ran.summary, ran.results);
+    const state: RunState = { hostBrowser: false, files: [], warnings: [], timings: {} };
+    const ran = await run(root, options, state);
+    const summary = await timed(state.timings, 'report', async () => {
+        const written = await writeRun(root, ran.summary, ran.results);
+        // Probed once run.json exists: a running Storybook proves it serves this project by serving that file.
+        const found = await findPanel(root, written);
+
+        return { ...written, panelUrl: found };
+    });
+    // Again with the report phase timed and the panel found: run.json stays equal to the printed summary.
+    await writeSummary(root, summary);
 
     if (options.json) {
         console.log(JSON.stringify(summary, null, 4));
     } else {
         printHuman(summary);
+    }
+    if (options.open && interactive) {
+        openFile(path.join(root, REPORT_DIR, 'index.html'));
     }
 
     return summary.exitCode;

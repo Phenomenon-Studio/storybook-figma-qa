@@ -11,6 +11,7 @@ import { CONFIG_FILE, iconsGlob } from '../figma/config.ts';
 import { RESULTS_DIR } from '../figma/types.ts';
 import { configFile, forgetProjectConfig, loadProjectConfig } from './config.ts';
 import { loadSets } from './sets.ts';
+import { recordStorybook } from './storybook-url.ts';
 import { FigmaSync } from './sync.ts';
 
 export const CONFIG_MODULE = 'virtual:figma-qa/config';
@@ -116,7 +117,8 @@ async function serveSets(root: string, request: IncomingMessage, response: Serve
     send(response, 200, 'application/json', JSON.stringify(loaded));
 }
 
-export function figmaQaVitePlugin(): Plugin {
+/** `storybookUrl`: where `storybook dev` serves, from the preset; absent for builds and Vitest. */
+export function figmaQaVitePlugin(options: { storybookUrl?: string } = {}): Plugin {
     let root = process.cwd();
 
     return {
@@ -130,6 +132,12 @@ export function figmaQaVitePlugin(): Plugin {
             root = config.root;
         },
         configureServer(server) {
+            // Storybook's dev server runs Vite in middleware mode; Vitest's own server doesn't.
+            if (options.storybookUrl && server.config.server.middlewareMode) {
+                recordStorybook(root, options.storybookUrl).catch(() => {
+                    // Only the report's panel URL hint depends on it.
+                });
+            }
             server.middlewares.use(DEV_ROUTE, (request, response, next) => {
                 const { pathname } = new URL(request.url ?? '/', 'http://localhost');
                 const file = request.method === 'GET' && pathname.startsWith('/files/');

@@ -150,5 +150,15 @@ export function runOf(
         })
     );
 
-    return { exitCode: runExitCode(stories, []), hostBrowser, cells, stories, errors: [], warnings: [] };
+    return {
+        exitCode: runExitCode(stories, []),
+        hostBrowser,
+        cells,
+        files: ['src/Swatch.figma.stories.tsx'],
+        stories,
+        errors: [],
+        warnings: [],
+        timings: { doctor: 40, browser: 1200, collect: 900, tests: 14_250 },
+        panelUrl: null,
+    };
 }

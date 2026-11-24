@@ -4,7 +4,7 @@
 // are recorded, not failed. Soft assertions, so one run reports every cell; the outcome is written per story.
 // Registers no project annotations: `setProjectAnnotations` throws on Storybook 11.
 import type { PixelDiffRequest, PixelDiffResponse } from './node/commands.ts';
-import type { LoadedSets, ResolvedStory, StoryParameters } from './figma/story.ts';
+import type { LoadedSets, ResolvedStory, SkipUnselected, StoryParameters } from './figma/story.ts';
 import type {
     Box,
     FigmaApproval,
@@ -13,11 +13,14 @@ import type {
     FigmaIssue,
     FigmaStoryResult,
 } from './figma/types.ts';
-import { afterEach, beforeEach, expect } from 'vitest';
+import type { TestContext } from 'vitest';
+import { afterEach, beforeEach, expect, inject } from 'vitest';
 import { commands, page } from 'vitest/browser';
 import { pathFrom, setVariables, figmaSpecMismatches, textMasks } from './figma/spec.ts';
 import { projectConfig } from './figma/project.ts';
-import { LOAD_SETS_HOOK, resolveStory } from './figma/story.ts';
+import { STORIES_KEY } from './constants.ts';
+import { LOAD_SETS_HOOK, resolveStory, SKIP_HOOK } from './figma/story.ts';
+import { globToRegExp } from './figma/story-scan.ts';
 import { FIGMA_SCALE, FIGMA_TAG, figmaIssueText, refPng } from './figma/types.ts';
 
 declare module 'vitest/browser' {
@@ -30,6 +33,33 @@ declare module 'vitest/browser' {
 
 // The preview loader reads refs through this: preview code can't import Vitest.
 Object.assign(globalThis, { [LOAD_SETS_HOOK]: commands.figmaEnsureSets });
+
+// Story-id filters (`figma-qa report 'button--*'`): the CLI collected only files that may hold a match; the rest of
+// a file's stories skip before they load. A file a component name matched runs whole.
+const selection = inject(STORIES_KEY) ?? null;
+if (selection) {
+    const globs = selection.globs.map(globToRegExp);
+    let current: TestContext | null = null;
+    beforeEach((context) => {
+        current = context;
+
+        return () => {
+            current = null;
+        };
+    });
+    const skipUnselected: SkipUnselected = (storyId) => {
+        const file = current?.task.file.filepath ?? '';
+        const selected =
+            selection.files.includes(file) ||
+            globs.some((glob) => {
+                return glob.test(storyId);
+            });
+        if (!selected) {
+            current?.skip(`not selected by ${selection.globs.join(', ')}`);
+        }
+    };
+    Object.assign(globalThis, { [SKIP_HOOK]: skipUnselected });
+}
 
 // Motion frozen so the one screenshot is the settled frame.
 const STABILIZE_CSS = `

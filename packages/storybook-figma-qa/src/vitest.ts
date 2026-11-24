@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { storybookTest } from '@storybook/addon-vitest/vitest-plugin';
 import { playwright } from '@vitest/browser-playwright';
-import { FIGMA_PROJECT } from './constants.ts';
+import { BROWSER_WS_ENV, FIGMA_PROJECT } from './constants.ts';
 import { FIGMA_SCALE, FIGMA_TAG } from './figma/types.ts';
 import { figmaEnsureSets, figmaPixelDiff, figmaSaveStoryResult } from './node/commands.ts';
 
@@ -18,6 +18,9 @@ const PAGE = { width: 1600, height: 1200 };
  * export scale and holds each matrix cell to its Figma variant (setup.ts).
  */
 export function figmaQa(): TestProjectInlineConfiguration {
+    // `figma-qa report` sets it before Vitest loads this config, in the same process.
+    const wsEndpoint = process.env[BROWSER_WS_ENV];
+
     return {
         extends: true,
         plugins: [
@@ -36,7 +39,12 @@ export function figmaQa(): TestProjectInlineConfiguration {
                 enabled: true,
                 headless: true,
                 // Figma refs are 2x exports, so the page renders at the same device scale.
-                provider: playwright({ contextOptions: { deviceScaleFactor: FIGMA_SCALE, viewport: PAGE } }),
+                provider: playwright({
+                    contextOptions: { deviceScaleFactor: FIGMA_SCALE, viewport: PAGE },
+                    // The pinned browser runs in a container: `<loopback>` tunnels its requests for Vitest's
+                    // localhost server back through this process.
+                    ...(wsEndpoint ? { connectOptions: { wsEndpoint, exposeNetwork: '<loopback>' } } : {}),
+                }),
                 instances: [{ browser: 'chromium' }],
                 screenshotFailures: false,
                 commands: { figmaEnsureSets, figmaPixelDiff, figmaSaveStoryResult },

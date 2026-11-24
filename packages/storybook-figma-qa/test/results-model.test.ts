@@ -24,7 +24,7 @@ function reportVerdicts(html: string): Record<string, string> {
 
 describe.each(FIXTURES)('results model in fixtures/%s', (fixture) => {
     it('persists the diff map per cell and renders the same verdicts in the HTML report', async () => {
-        const { code, stderr, summary } = await report(fixture, ['Swatch']);
+        const { code, stderr, summary } = await report(fixture, ['Swatch.figma', 'SwatchDrift.figma']);
 
         expect(code, stderr).toBe(1);
         const root = fixtureDir(fixture);

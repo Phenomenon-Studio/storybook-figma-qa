@@ -328,12 +328,23 @@ export type FigmaRunSummary = {
      */
     hostBrowser: boolean;
     cells: CellCounts;
+    /** Story files Vitest collected: the scanned Figma story files the filters kept, relative to the project root. */
+    files: string[];
     stories: FigmaStorySummary[];
     /** Errors outside any story: unloadable story files, unhandled errors, a missing Figma project. */
     errors: string[];
     /** Stories' warnings, deduplicated: never change the exit code. */
     warnings: string[];
+    /** Milliseconds per phase, for the phases the run reached. `report` is missing from the HTML report it times. */
+    timings: Partial<Record<RunPhase, number>>;
+    /** The "Figma diff" panel of a running `storybook dev` for this project, at the first story worth a look. */
+    panelUrl: string | null;
 };
+
+/** A report's phases, in order. Figma sync happens lazily inside `tests`. */
+export const RUN_PHASES = ['doctor', 'browser', 'collect', 'tests', 'report'] as const;
+
+export type RunPhase = (typeof RUN_PHASES)[number];
 
 /** The run summary, relative to the project root. */
 export const RUN_FILE = `${RESULTS_DIR}/run.json`;

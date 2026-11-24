@@ -6,6 +6,7 @@ import type { FigmaRunSummary, FigmaStoryResult } from '../figma/types.ts';
 import type { FileUrl } from './results.tsx';
 import React from 'react';
 import { Counts, RunNotices, StorySection } from './results.tsx';
+import { RUN_PHASES } from '../figma/types.ts';
 import { FIGMA_QA_CSS } from './theme.ts';
 
 const OUTCOME: Record<FigmaRunSummary['exitCode'], string> = {
@@ -13,6 +14,28 @@ const OUTCOME: Record<FigmaRunSummary['exitCode'], string> = {
     1: 'Some cells differ from Figma.',
     2: 'A harness or setup error stopped some checks: those are not design verdicts.',
 };
+
+/** Where the run's time went, phase by phase. The report phase is still running while this renders. */
+function Timings({ timings }: { timings: FigmaRunSummary['timings'] }) {
+    const phases = RUN_PHASES.filter((phase) => {
+        return timings[phase] !== undefined;
+    });
+    if (phases.length === 0) {
+        return null;
+    }
+
+    return (
+        <ul className="fqa-counts" aria-label="Timings">
+            {phases.map((phase) => {
+                return (
+                    <li key={phase} data-phase={phase}>
+                        {phase} <b>{((timings[phase] ?? 0) / 1000).toFixed(1)} s</b>
+                    </li>
+                );
+            })}
+        </ul>
+    );
+}
 
 export type ReportPageProps = { run: FigmaRunSummary; results: FigmaStoryResult[]; fileUrl: FileUrl };
 
@@ -23,6 +46,7 @@ export function ReportBody({ run, results, fileUrl }: ReportPageProps) {
                 <h1>Figma report</h1>
                 <p>{OUTCOME[run.exitCode]}</p>
                 <Counts cells={run.cells} />
+                <Timings timings={run.timings} />
                 <RunNotices hostBrowser={run.hostBrowser} errors={run.errors} />
             </header>
             {run.stories.map((story) => {

@@ -25,6 +25,8 @@ export async function runCli(fixture: Fixture, args: string[], env: Record<strin
     const { FIGMA_TOKEN: _token, FIGMA_API_URL: _api, FIGMA_QA_REFRESH: _refresh, ...base } = process.env;
     try {
         const { stdout, stderr } = await execFileAsync('pnpm', ['exec', 'figma-qa', ...args], {
+            // A report that prompted would hang here, not read an answer.
+            timeout: 300_000,
             cwd: fixtureDir(fixture),
             env: { ...base, ...env },
         });
@@ -42,10 +44,14 @@ export async function runCli(fixture: Fixture, args: string[], env: Record<strin
 export type Cells = { pass: number; fail: number; approved: number; missing: number };
 export type Summary = {
     exitCode: number;
+    hostBrowser: boolean;
     cells: Cells;
+    files: string[];
     stories: { storyId: string; verdict: string; cells: Cells; error: string | null; results: string | null }[];
     errors: string[];
     warnings: string[];
+    timings: Record<string, number>;
+    panelUrl: string | null;
 };
 export type StoryResult = {
     error: string | null;
@@ -53,9 +59,19 @@ export type StoryResult = {
     blocks: { cells: { variant: { name: string }; status: string; approval: string | null }[] }[];
 };
 
-/** `figma-qa report <args> --json`. */
+/**
+ * `figma-qa report <args> --host-browser --json`: Docker may be on the machine, and the pinned image is
+ * local-report.test.ts's subject, behind a fake Docker (`json()` there).
+ */
 export async function report(fixture: Fixture, args: string[], env: Record<string, string> = {}) {
-    const result = await runCli(fixture, ['report', ...args, '--json'], env);
+    return json(await runCli(fixture, ['report', ...args, '--host-browser', '--json'], env));
+}
+
+/** The run warning every `report()` carries: it passes `--host-browser`. */
+export const HOST_WARNING = 'Host Chromium (--host-browser): pixels are not comparable to CI.';
+
+/** Parses a `--json` run's stdout. */
+export function json(result: { code: number; stdout: string; stderr: string }) {
     // stdout holds only the summary: anything else there fails the parse.
     const summary = JSON.parse(result.stdout) as Summary;
 

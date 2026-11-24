@@ -5,7 +5,7 @@ import { cp, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { fixtureDir, FIXTURES, report, storyResult } from './cli.ts';
+import { fixtureDir, FIXTURES, HOST_WARNING, report, storyResult } from './cli.ts';
 import { startFigmaStub } from './figma-stub.ts';
 
 const REFS = 'figma-qa/__refs__';
@@ -59,7 +59,7 @@ describe.each(FIXTURES)('figma sync in fixtures/%s', (fixture) => {
         expect(code, stderr).toBe(0);
         // Loader and checks both ask for the set: served from the run's memory the second time.
         expect(stub.routes()).toEqual(['meta']);
-        expect(summary.warnings).toEqual([]);
+        expect(summary.warnings).toEqual([HOST_WARNING]);
     });
 
     it('warns, without failing or refetching, when Figma is newer than the synced refs', async () => {
@@ -69,10 +69,10 @@ describe.each(FIXTURES)('figma sync in fixtures/%s', (fixture) => {
 
         expect(code, stderr).toBe(0);
         expect(stub.routes()).toEqual(['meta']);
-        expect(summary.warnings).toEqual([expect.stringContaining('Figma changed since')]);
-        expect(summary.warnings[0]).toContain('version 1 → 2');
+        expect(summary.warnings).toEqual([HOST_WARNING, expect.stringContaining('Figma changed since')]);
+        expect(summary.warnings[1]).toContain('version 1 → 2');
         const result = await storyResult(fixture, summary.stories[0]?.results ?? null);
-        expect(result.warnings).toEqual(summary.warnings);
+        expect([HOST_WARNING, ...result.warnings]).toEqual(summary.warnings);
     });
 
     it.each([401, 403])('exits 2 when Figma rejects the token (%i)', async (status) => {
@@ -108,7 +108,7 @@ describe.each(FIXTURES)('figma sync in fixtures/%s', (fixture) => {
         await rm(path.join(root, SET_DIR), { recursive: true });
 
         // Swatch and SwatchDrift link the same set.
-        const { code, stderr, summary } = await report(fixture, ['Swatch'], token);
+        const { code, stderr, summary } = await report(fixture, ['Swatch.figma', 'SwatchDrift.figma'], token);
 
         expect(code, stderr).toBe(1);
         expect(summary.stories).toHaveLength(2);
@@ -150,7 +150,7 @@ describe.each(FIXTURES)('figma sync in fixtures/%s', (fixture) => {
         expect(run.code, run.stderr).toBe(0);
         expect(stub.routes()).toEqual(['meta', 'nodes']);
         expect(await manifestVersion(fixture)).toBe('2');
-        expect(run.summary.warnings).toEqual([]);
+        expect(run.summary.warnings).toEqual([HOST_WARNING]);
 
         // Same version again: rebuilt offline from the raw /nodes JSON, so a hand-edited manifest is restored.
         const manifestFile = path.join(root, SET_DIR, 'manifest.json');

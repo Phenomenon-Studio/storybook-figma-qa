@@ -2,9 +2,13 @@ import { FigmaMatrix } from '@phenomenon-studio/storybook-figma-qa/preview';
 import preview from '../.storybook/preview.ts';
 import { GLYPH_SET, glyphCell } from './glyph-cell.tsx';
 
+// Not a literal at the meta: `figma-qa report` can't read it statically and collects the file anyway. Storybook
+// resolves a same-file const.
+const GLYPH_TAGS = ['figma', '!autodocs'];
+
 const meta = preview.meta({
     title: 'Glyph/Figma',
-    tags: ['figma', '!autodocs'],
+    tags: GLYPH_TAGS,
     parameters: { design: [{ name: 'glyph', type: 'figma', url: GLYPH_SET }] },
 });
 

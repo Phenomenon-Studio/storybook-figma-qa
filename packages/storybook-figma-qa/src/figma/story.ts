@@ -37,6 +37,14 @@ export const LOAD_SETS_HOOK = '__figmaQaLoadSets';
 
 export type LoadSets = (urls: string[]) => Promise<LoadedSets>;
 
+/**
+ * The setup file installs this when a run selects stories by id: called with the story id before the story loads, it
+ * skips the test when the story isn't selected. Ids exist only once a story runs, so the loader is the first place.
+ */
+export const SKIP_HOOK = '__figmaQaSkipUnselected';
+
+export type SkipUnselected = (storyId: string) => void;
+
 /** A story set up wrongly: a harness error (exit 2), never a design verdict. */
 export class FigmaStoryError extends Error {
     override name = 'FigmaStoryError';

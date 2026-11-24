@@ -1,0 +1,3 @@
+#!/bin/sh
+# Test double for the Docker CLI, first on PATH in local-report.test.ts.
+exec node "$(dirname "$0")/fake-docker.mjs" "$@"

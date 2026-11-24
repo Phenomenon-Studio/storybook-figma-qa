@@ -1,7 +1,7 @@
-import type { LoadedSets, LoadSets } from './figma/story.ts';
+import type { LoadedSets, LoadSets, SkipUnselected } from './figma/story.ts';
 import { definePreviewAddon } from 'storybook/internal/csf';
 import { COMPARE_GLOBAL, DEV_ROUTE } from './constants.ts';
-import { LOAD_SETS_HOOK, resolveStory } from './figma/story.ts';
+import { LOAD_SETS_HOOK, resolveStory, SKIP_HOOK } from './figma/story.ts';
 import { FIGMA_TAG } from './figma/types.ts';
 
 export { FigmaIcon } from './icon.tsx';
@@ -45,10 +45,11 @@ const devLoadSets: LoadSets = async (urls) => {
  * through the hook the Vitest setup installs; in a running Storybook, from the dev route. A misconfigured story
  * loads its error instead of throwing, so the run records it per story.
  */
-async function loadFigma({ tags, parameters }: { tags: string[]; parameters: Record<string, unknown> }) {
+async function loadFigma({ id, tags, parameters }: { id: string; tags: string[]; parameters: Record<string, unknown> }) {
     if (!tags.includes(FIGMA_TAG)) {
         return {};
     }
+    (globalThis as { [SKIP_HOOK]?: SkipUnselected })[SKIP_HOOK]?.(id);
     const loadSets = (globalThis as { [LOAD_SETS_HOOK]?: LoadSets })[LOAD_SETS_HOOK] ?? devLoadSets;
     try {
         return { figmaQa: await resolveStory(parameters, loadSets) };

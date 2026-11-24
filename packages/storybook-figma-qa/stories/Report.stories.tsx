@@ -61,6 +61,19 @@ export const HostBrowser: Story = {
     },
 };
 
+/** Phase timings, in run order, as the CLI measured them. */
+export const Timings: Story = {
+    args: { run: runOf([PASS]), results: [PASS] },
+    play: async ({ canvasElement }) => {
+        const timings = within(canvasElement).getByRole('list', { name: 'Timings' });
+        await expect(
+            [...timings.querySelectorAll('li')].map((item) => {
+                return item.textContent;
+            })
+        ).toEqual(['doctor 0.0 s', 'browser 1.2 s', 'collect 0.9 s', 'tests 14.3 s']);
+    },
+};
+
 export const Fails: Story = {
     args: { run: runOf([PASS, FAIL, FIGMA_CHANGED]), results: [PASS, FAIL, FIGMA_CHANGED] },
     play: async ({ canvasElement }) => {

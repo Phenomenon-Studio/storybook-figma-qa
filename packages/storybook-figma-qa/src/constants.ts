@@ -12,3 +12,15 @@ export const REFRESH_ENV = 'FIGMA_QA_REFRESH';
  * and refs for the panel; `POST ${DEV_ROUTE}/sets` loads a Figma story's sets for the matrix.
  */
 export const DEV_ROUTE = '/__figma-qa';
+/**
+ * Set by `figma-qa report` when the pinned browser image runs: `figmaQa()` connects to this Playwright server instead
+ * of launching the host's Chromium.
+ */
+export const BROWSER_WS_ENV = 'FIGMA_QA_BROWSER_WS';
+/** Host port of the pinned browser's Playwright server; tests move it off the default. */
+export const BROWSER_PORT_ENV = 'FIGMA_QA_BROWSER_PORT';
+export const BROWSER_PORT = 3100;
+/** Provided to the Figma project's browser by `figma-qa report` for story-id filters: an `IdSelection`. */
+export const STORIES_KEY = 'figmaQaStories';
+/** The package `.storybook/main` lists in `addons` to load the kit's preset, manager and preview. */
+export const PACKAGE_NAME = '@phenomenon-studio/storybook-figma-qa';
