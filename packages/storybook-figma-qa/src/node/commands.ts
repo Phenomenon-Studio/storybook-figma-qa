@@ -12,6 +12,10 @@ import { readJson } from './json.ts';
 import { pixelDiff } from './pixel-diff.ts';
 import { FigmaSync } from './sync.ts';
 
+async function refsDirOf(root: string): Promise<string> {
+    return (await loadProjectConfig(root)).config.refsDir;
+}
+
 /** One sync state per Vitest run: every story of the run shares its `/meta` calls and coalesced batches. */
 const syncs = new WeakMap<object, FigmaSync>();
 
@@ -21,7 +25,7 @@ const syncs = new WeakMap<object, FigmaSync>();
  */
 export const figmaEnsureSets: BrowserCommand<[urls: string[]]> = async ({ project }, urls): Promise<LoadedSets> => {
     const root = project.config.root;
-    const { refsDir } = (await loadProjectConfig(root)).config;
+    const refsDir = await refsDirOf(root);
     let sync = syncs.get(project.vitest);
     if (!sync) {
         sync = new FigmaSync({ root, refsDir });
@@ -73,7 +77,7 @@ export const figmaPixelDiff: BrowserCommand<[request: PixelDiffRequest]> = async
     request
 ): Promise<PixelDiffResponse> => {
     const root = project.config.root;
-    const { refsDir } = (await loadProjectConfig(root)).config;
+    const refsDir = await refsDirOf(root);
     const variant = variantSlug(request.variantId);
     const figma = refPng(refsDir, path.basename(request.slug), request.variantId);
     const cell = `${RESULTS_DIR}/${path.basename(request.storyId)}-${variant}`;

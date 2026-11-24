@@ -1,7 +1,7 @@
 // Pure logic: `figma-qa.config.ts` defaults and validation. Behaviour of each key is proven through the CLI
 // (config-cli.test.ts).
 import { describe, expect, it } from 'vitest';
-import { defineConfig, iconName, resolveConfig } from '../src/config.ts';
+import { defineConfig, iconName, resolveConfig } from '../src/figma/config.ts';
 
 describe('resolveConfig', () => {
     it('applies every default when there is no config', () => {
@@ -49,6 +49,8 @@ describe('resolveConfig', () => {
         [{ tokenName: '--x' }, '"tokenName" must be a function'],
         [{ icons: { name: 'x' } }, '"icons.name" must be a function'],
         [{ icons: { glob: '' } }, '"icons.glob" must be a non-empty string'],
+        [{ icons: { glob: '../icons/*.svg' } }, '"icons.glob" must be relative to the project root'],
+        [{ icons: { glob: '/src/*.svg' } }, '"icons.glob" must be relative to the project root'],
         [{ refsDir: 3 }, '"refsDir" must be a non-empty string'],
         [{ maxDiffRatio: 2 }, '"maxDiffRatio" must be a number from 0 to 1'],
         [{ maxDiffRatio: '0.1' }, '"maxDiffRatio" must be a number from 0 to 1'],

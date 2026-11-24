@@ -1016,8 +1016,8 @@ function boundColor(color: Rgba, id: string): { note: string; token: string | nu
         };
     }
     const token = projectConfig().tokenName(variable);
-    const kit = tokenColor(token);
-    if (!kit) {
+    const kit = token ? tokenColor(token) : null;
+    if (!token || !kit) {
         return {
             note: `var ${variable.name} · no kit token by that name; nearest ${nearestToken(color, CHANNEL)}`,
             token: null,

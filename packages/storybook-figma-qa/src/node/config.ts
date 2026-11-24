@@ -1,10 +1,10 @@
 // Node side of `figma-qa.config.ts`: loaded through Vite, so the TypeScript file and its imports load the way the
 // preview loads them. One load per project root per process: the CLI, the Vitest browser commands and the Storybook
 // preset of one run share it.
-import type { ResolvedConfig } from '../config.ts';
+import type { ResolvedConfig } from '../figma/config.ts';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { CONFIG_FILE, FigmaQaConfigError, resolveConfig } from '../config.ts';
+import { CONFIG_FILE, FigmaQaConfigError, resolveConfig } from '../figma/config.ts';
 
 export type ProjectConfig = {
     /** Absolute path of the config file; null when the project has none and every default applies. */
@@ -14,9 +14,16 @@ export type ProjectConfig = {
 
 const loads = new Map<string, Promise<ProjectConfig>>();
 
-async function load(root: string): Promise<ProjectConfig> {
+/** The project's config file, unloaded; null when it has none. */
+export function configFile(root: string): string | null {
     const file = path.join(root, CONFIG_FILE);
-    if (!existsSync(file)) {
+
+    return existsSync(file) ? file : null;
+}
+
+async function load(root: string): Promise<ProjectConfig> {
+    const file = configFile(root);
+    if (!file) {
         return { file: null, config: resolveConfig(undefined) };
     }
     const { loadConfigFromFile } = await import('vite');
@@ -30,6 +37,11 @@ async function load(root: string): Promise<ProjectConfig> {
     }
 
     return { file, config: resolveConfig(raw) };
+}
+
+/** Drops the cached load: the dev server calls it when the config file changes. */
+export function forgetProjectConfig(root: string): void {
+    loads.delete(root);
 }
 
 /** The project's config, validated. Rejects with FigmaQaConfigError. */

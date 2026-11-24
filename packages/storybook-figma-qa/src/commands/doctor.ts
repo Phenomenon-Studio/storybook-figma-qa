@@ -1,6 +1,6 @@
 // `figma-qa doctor`: setup checks, one line each. Exit 2 when a check blocks a run; warnings keep exit 0.
 import { glob } from 'tinyglobby';
-import { CONFIG_FILE } from '../config.ts';
+import { CONFIG_FILE } from '../figma/config.ts';
 import { loadProjectConfig } from '../node/config.ts';
 
 export async function doctor(): Promise<number> {
@@ -9,7 +9,7 @@ export async function doctor(): Promise<number> {
     try {
         loaded = await loadProjectConfig(root);
     } catch (error) {
-        console.error(`figma-qa doctor: ${(error as Error).message}`);
+        console.error(`figma-qa doctor: ${error instanceof Error ? error.message : String(error)}`);
 
         return 2;
     }
