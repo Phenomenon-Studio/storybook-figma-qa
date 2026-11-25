@@ -41,7 +41,7 @@ Without `gh`: a [classic personal access token](https://github.com/settings/toke
 `pnpm dlx @phenomenon-studio/storybook-figma-qa init [--yes] [--dry-run] [--next]` installs the kit into a React + Vite project. Each step detects before it acts, so a re-run on a set-up project changes nothing; `--dry-run` prints the plan and writes or runs nothing.
 
 1. **Storybook**: none → `npx storybook@^10 init` for React + Vite (`--next`: `storybook@next`, the 11 beta). Before 10.6 → exit 2 pointing at `storybook upgrade`; no React + Vite (or another framework in `.storybook/main`) → exit 2 naming what it found.
-2. **Packages**: project `.npmrc` gets only `@phenomenon-studio:registry=https://npm.pkg.github.com` (the token stays in the user's `~/.npmrc`), then the kit and, when missing, `storybook add @storybook/addon-vitest`.
+2. **Packages**: project `.npmrc` gets only `@phenomenon-studio:registry=https://npm.pkg.github.com` (the token stays in the user's `~/.npmrc`), and `.gitignore` gets `/figma-qa/.results/` (each run's report and screenshots) unless git already ignores it, then the kit and, when missing, `storybook add @storybook/addon-vitest`.
 3. **Config** (magicast, literal shapes only): the kit in `.storybook/main` `addons`, `figmaQa()` in CSF Next `definePreview({ addons })` (a classic preview is left to the preset), `figmaQa()` in Vitest `test.projects`. Any other shape prints the exact snippet and exits 2 after the other steps.
 4. **Project**: `"figma-report": "figma-qa report"` script, a `<!-- figma-qa:start -->` rules block in `AGENTS.md` (and `CLAUDE.md` when it doesn't import `@AGENTS.md`; only text between the markers is rewritten), then the installed kit's `figma-qa migrate` (a no-op unless an upgrade changed the refs format; see [Upgrading](#upgrading)), then the kit's skills (`figma-qa`: run the report and triage failing cells; `figma-qa-scaffold`: finish a scaffolded story; `figma-qa-variables`: name unnamed Figma variables) via the pinned `skills` CLI into `.agents/skills` and `.claude/skills` (skipped when the copies match the installed kit). The CLI only adds, so first init removes what a newer kit dropped: a skill whose `skills-lock.json` entry points at the kit's `skills` but which the kit no longer ships (`skills remove <name> -y`), and files in a kit skill's copies that the kit no longer has. Skills from any other source are left alone.
 
@@ -52,7 +52,7 @@ Without `gh`: a [classic personal access token](https://github.com/settings/toke
 
    `--yes` (`-y`) or no terminal (CI, agents): no prompt, no secret written, no pull; the checklist prints and init exits 0. `--dry-run` runs no check (`plan  first-run wizard: …`). A complete setup prints only `ok` and `info` lines and asks nothing. The checklist ends with the PR workflow caller.
 
-It never touches stories, components, tokens, the manager theme, other Vitest projects, git or CI files. `test/init-cli.test.ts` runs it on copies of both fixtures with the kit stripped.
+It never touches stories, components, tokens, the manager theme, other Vitest projects, git history or CI files. `test/init-cli.test.ts` runs it on copies of both fixtures with the kit stripped.
 
 ## `figma-qa report`
 

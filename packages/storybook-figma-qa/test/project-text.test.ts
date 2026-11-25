@@ -1,11 +1,13 @@
-// Pure logic: `figma-qa init`'s rules block, registry scope line and PR workflow caller.
+// Pure logic: `figma-qa init`'s rules block, registry scope line, results ignore line and PR workflow caller.
 import { describe, expect, it } from 'vitest';
 import {
     callerWorkflow,
     REGISTRY_LINE,
+    RESULTS_IGNORE_LINE,
     RULES_BLOCK,
     usesKitWorkflow,
     withRegistryLine,
+    withResultsIgnored,
     withRulesBlock,
 } from '../src/node/project-text.ts';
 
@@ -65,5 +67,27 @@ describe('callerWorkflow', () => {
     it('tells a caller of the kit workflow from other workflows', () => {
         expect(usesKitWorkflow('jobs:\n  ci:\n    runs-on: ubuntu-latest\n')).toBe(false);
         expect(usesKitWorkflow("uses: 'Phenomenon-Studio/storybook-figma-qa/.github/workflows/figma-qa.yml@main'")).toBe(true);
+    });
+});
+
+describe('withResultsIgnored', () => {
+    it('writes the line alone into a missing file', () => {
+        expect(RESULTS_IGNORE_LINE).toBe('/figma-qa/.results/');
+        expect(withResultsIgnored(null)).toBe('/figma-qa/.results/\n');
+    });
+
+    it('appends after existing patterns, once', () => {
+        const once = withResultsIgnored('node_modules\n.env.local');
+
+        expect(once).toBe('node_modules\n.env.local\n/figma-qa/.results/\n');
+        expect(withResultsIgnored(once)).toBe(once);
+    });
+
+    it('keeps a line that already names the results dir, with or without slashes', () => {
+        for (const line of ['figma-qa/.results', 'figma-qa/.results/', '/figma-qa/.results', '/figma-qa/.results/\r']) {
+            const source = `dist\n${line}\n`;
+
+            expect(withResultsIgnored(source)).toBe(source);
+        }
     });
 });

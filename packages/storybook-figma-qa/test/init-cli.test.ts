@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { glob } from 'tinyglobby';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { VITEST_SNIPPET } from '../src/node/merge.ts';
-import { REGISTRY_LINE, RULES_BLOCK } from '../src/node/project-text.ts';
+import { REGISTRY_LINE, RESULTS_IGNORE_LINE, RULES_BLOCK } from '../src/node/project-text.ts';
 import { answering, type Fixture, fixtureDir, FIXTURES, KIT_BIN, runIn } from './cli.ts';
 import { type FigmaStub, startFigmaStub } from './figma-stub.ts';
 
@@ -129,6 +129,7 @@ describe.each(FIXTURES)('figma-qa init on a clean copy of fixtures/%s', (fixture
         expect(result.code, result.stderr).toBe(0);
         expect(result.stdout).toContain('ok    storybook: ');
         expect(result.stdout).toContain(`write .npmrc: ${REGISTRY_LINE}`);
+        expect(result.stdout).toContain(`write .gitignore: ${RESULTS_IGNORE_LINE}`);
         expect(result.stdout).toContain('write .storybook/main.ts: kit in addons');
         expect(result.stdout).toContain('write .storybook/preview.ts: kit in definePreview addons');
         expect(result.stdout).toContain('write vitest.config.ts: figmaQa() in test.projects');
@@ -158,6 +159,7 @@ describe.each(FIXTURES)('figma-qa init on a clean copy of fixtures/%s', (fixture
                         return `${agent}/skills/${file}`;
                     });
                 }),
+                '.gitignore',
                 '.npmrc',
                 '.storybook/main.ts',
                 '.storybook/preview.ts',
@@ -171,6 +173,8 @@ describe.each(FIXTURES)('figma-qa init on a clean copy of fixtures/%s', (fixture
                 return await readFile(path.join(dir, file), 'utf8');
             };
             expect(await read('.npmrc')).toBe(`auto-install-peers=true\n${REGISTRY_LINE}\n`);
+            // Reports and screenshots are per run: never committed.
+            expect(await read('.gitignore')).toBe(`${RESULTS_IGNORE_LINE}\n`);
             expect(await read('AGENTS.md')).toBe(`# Fixture\n\nProject rules.\n\n${RULES_BLOCK}\n`);
             expect(await read('CLAUDE.md')).toContain(RULES_BLOCK);
             // The addon-vitest project stays as it was, next to the kit's.
@@ -572,6 +576,7 @@ describe('figma-qa init in other projects', () => {
             'vitest.config.ts': "export default defineConfig(({ mode }) => { return { test: { projects: [] } }; });\n",
             'AGENTS.md': `${RULES_BLOCK}\n`,
             '.npmrc': `${REGISTRY_LINE}\n`,
+            '.gitignore': `${RESULTS_IGNORE_LINE}\n`,
         });
         const before = await snapshot(dir);
 

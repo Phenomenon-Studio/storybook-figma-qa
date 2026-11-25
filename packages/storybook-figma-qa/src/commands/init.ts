@@ -10,6 +10,7 @@ import { lstat, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { glob } from 'tinyglobby';
 import { PACKAGE_NAME } from '../constants.ts';
+import { RESULTS_DIR } from '../figma/types.ts';
 import { resolveConfig } from '../figma/config.ts';
 import { pullImage } from '../node/browser.ts';
 import { type Check, fileAccessChecks, humanChecks, printCheck, SEAT_NOTE } from '../node/checks.ts';
@@ -19,7 +20,15 @@ import { ENV_FILE, FigmaTokenError, figmaGet } from '../node/figma-api.ts';
 import { MAIN_FILES } from '../node/figma-project.ts';
 import { type MergeResult, mergeMain, mergePreview, mergeVitest, VITEST_SNIPPET } from '../node/merge.ts';
 import { ask, confirm, interactive } from '../node/prompt.ts';
-import { callerWorkflow, REGISTRY_LINE, usesKitWorkflow, withRegistryLine, withRulesBlock } from '../node/project-text.ts';
+import {
+    callerWorkflow,
+    REGISTRY_LINE,
+    RESULTS_IGNORE_LINE,
+    usesKitWorkflow,
+    withRegistryLine,
+    withResultsIgnored,
+    withRulesBlock,
+} from '../node/project-text.ts';
 import { print } from '../node/output.ts';
 
 /** `ask`: the wizard may prompt (a terminal, no `--yes`, no `--dry-run`). */
@@ -284,6 +293,21 @@ async function ensureRegistry(root: string, options: Options) {
         line('ok', `.npmrc: ${REGISTRY_LINE}`);
     } else {
         await write(options, file, next, `.npmrc: ${REGISTRY_LINE}`);
+    }
+}
+
+/**
+ * `figma-qa/.results` holds each run's report and screenshots: never committed. Any pattern git already applies to it
+ * counts (a repo-level `.gitignore`, a broader glob); otherwise the project `.gitignore` gets the line.
+ */
+async function ensureResultsIgnored(root: string, options: Options) {
+    const file = path.join(root, '.gitignore');
+    const source = await readText(file);
+    const next = withResultsIgnored(source);
+    if (next === source || gitIgnored(root, `${RESULTS_DIR}/run.json`)) {
+        line('ok', `.gitignore: ${RESULTS_DIR} ignored`);
+    } else {
+        await write(options, file, next, `.gitignore: ${RESULTS_IGNORE_LINE}`);
     }
 }
 
@@ -682,11 +706,12 @@ async function run(root: string, options: Options): Promise<number> {
     }
     if ((await ensureStorybook(root, options)) === 'planned') {
         // Nothing to read yet: the rest merges into what `storybook init` writes.
-        line('plan', 'then: the kit package, config merges, rules block, .npmrc scope line, migrate and skills');
+        line('plan', 'then: the kit package, config merges, rules block, .npmrc scope line, .gitignore line, migrate and skills');
 
         return 0;
     }
     await ensureRegistry(root, options);
+    await ensureResultsIgnored(root, options);
     const { kitPending, vitestPending } = await ensurePackages(root, options);
     const manual = await mergeConfigs(root, options, vitestPending);
     await ensureScript(root, options);

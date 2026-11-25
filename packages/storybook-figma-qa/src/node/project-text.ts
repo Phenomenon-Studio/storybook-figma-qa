@@ -1,6 +1,7 @@
-// `figma-qa init`'s edits to plain-text project files: the agent rules block and the registry scope line.
+// `figma-qa init`'s edits to plain-text project files: the agent rules block, the registry scope line and the results
+// ignore line.
 import { PACKAGE_NAME } from '../constants.ts';
-import { FIGMA_TAG } from '../figma/types.ts';
+import { FIGMA_TAG, RESULTS_DIR } from '../figma/types.ts';
 
 export const RULES_START = '<!-- figma-qa:start -->';
 export const RULES_END = '<!-- figma-qa:end -->';
@@ -53,6 +54,25 @@ export function withRegistryLine(source: string | null): string {
     }
 
     return `${[...lines, REGISTRY_LINE].join('\n')}\n`;
+}
+
+/** Reports, screenshots and diffs are per run: the `.gitignore` line init adds, anchored at the project root. */
+export const RESULTS_IGNORE_LINE = `/${RESULTS_DIR}/`;
+
+/** `source` with the results dir ignored: kept as is when a line already names it, else the line is appended. */
+export function withResultsIgnored(source: string | null): string {
+    const lines = source ? source.split('\n') : [];
+    const named = lines.some((line) => {
+        return line.trim().replace(/^\//, '').replace(/\/$/, '') === RESULTS_DIR;
+    });
+    if (named) {
+        return source ?? '';
+    }
+    if (lines.at(-1) === '') {
+        lines.pop();
+    }
+
+    return `${[...lines, RESULTS_IGNORE_LINE].join('\n')}\n`;
 }
 
 /** The kit's reusable PR workflow, as a caller's `uses:` names it (before `@ref`). */
