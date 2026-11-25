@@ -1,0 +1,2 @@
+# Its own pnpm root: the site's Astro deps stay out of the kit's workspace, lockfile and CI matrix.
+packages: []

@@ -74,7 +74,9 @@ export const FIGMA_QA_CSS = `
 .fqa-page { max-width: 1100px; margin: 0 auto; padding: 32px 20px 64px; display: flex; flex-direction: column; gap: 28px; }
 .fqa-page > header { display: flex; flex-direction: column; gap: 10px; }
 .fqa-page > article + article { padding-top: 24px; border-top: 1px solid var(--line); }
-.fqa-panel { display: flex; flex-direction: column; gap: 14px; padding: 14px 16px 24px; }
+.fqa-panel { display: flex; flex-direction: column; gap: 14px; padding: 14px 16px 24px;
+    /* Fill the addon panel: short results would otherwise leave the manager's light background below them. */
+    min-height: 100%; }
 .fqa-panel__bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .fqa-btn { height: 28px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line-2); background: transparent;
     color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; }

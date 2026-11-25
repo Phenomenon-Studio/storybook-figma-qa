@@ -213,4 +213,37 @@ describe.each(FIXTURES)('figma-qa report in fixtures/%s', (fixture) => {
             "approved: { when: { Size: ['Large'], Tone: ['Brand'] }, reason: 'TODO: why this deviation is deliberate (WCAG criterion or decision)' },"
         );
     });
+
+    it('prints what differs from Figma under each failing cell, plain when stdout is not a terminal', async () => {
+        const { code, stdout } = await runCli(fixture, ['report', 'swatch-figma-triage', '--host-browser', '--no-open']);
+
+        expect(code).toBe(1);
+        // stdout is a pipe here: the kit's lines carry no escape codes for agents, pipes and CI logs. (Vitest's own run
+        // log above them colours itself.)
+        const kitLines = stdout.indexOf('FAIL  Swatch › Matrix');
+        expect(kitLines).toBeGreaterThan(-1);
+        expect(stdout.slice(kitLines)).not.toContain('\u001b[');
+        const under = (header: string) => {
+            const lines = stdout.slice(stdout.indexOf(header)).split('\n').slice(1);
+            const end = lines.findIndex((line) => {
+                return !line.startsWith('        ');
+            });
+
+            return lines.slice(0, end).join('\n');
+        };
+        // token: Figma's token and the story's, on their own lines.
+        const token = under('✗ swatch · Size=Small, Tone=Brand [token]');
+        expect(token).toMatch(/^ {8}Component › Background \(.+\)$/m);
+        expect(token).toMatch(/^ {8}- figma {2}\S.* {2}--color-brand$/m);
+        expect(token).toMatch(/^ {8}\+ story {2}\S.* {2}--color-neutral {2}delta /m);
+        expect(token).toMatch(
+            /^ {8}pixels: [\d.]+% differ \(max 5%\) → figma-qa\/\.results\/swatch-figma-triage--matrix-[\d-]+-diff\.png$/m
+        );
+        // value: the delta on the story's line.
+        const value = under('✗ swatch · Size=Large, Tone=Brand [value]');
+        expect(value).toContain('        Component › Width (±1px)\n        - figma  40px\n        + story  24px  delta −16px\n');
+        // harness: the image error in place of a share.
+        const harness = under('✗ swatch · Size=Small, Tone=Brand [harness]');
+        expect(harness).toContain('        pixels: not measured: Capture blocked: div.fixture-blocker covers the cell.');
+    });
 });
