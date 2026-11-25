@@ -18,3 +18,4 @@ export const NoDesignEntry = meta.story({
 export const NoMatrix = meta.story({
     parameters: { design: [{ name: 'swatch', type: 'figma', url: SWATCH_SET }] },
 });
+// proof PR: affected (expect CLI exit 2)

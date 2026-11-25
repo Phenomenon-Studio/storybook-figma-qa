@@ -15,4 +15,4 @@ jobs:
             FIGMA_TOKEN: ${{ secrets.FIGMA_TOKEN }}
         with:
             working-directory: fixtures/sb11
-            setup: pnpm build && exit 2
+            setup: pnpm build && pnpm install --frozen-lockfile --offline
