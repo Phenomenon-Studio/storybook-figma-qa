@@ -103,11 +103,20 @@ ERROR src/Misconfigured.figma.stories.tsx › No Matrix: error: Story is tagged 
 PASS  Swatch › Matrix: 2 pass, 0 fail, 2 approved, 2 missing
 FAIL  Swatch › Matrix: 0 pass, 4 fail, 0 approved, 2 missing
       ✗ swatch · Size=Small, Tone=Brand [token]
+        Component › Background (ΔEOK ≤ 0.01 as seen)
+        - figma  hsl(228 69% 54.5%)  --color-brand
+        + story  hsl(210 7.1% 55.7%)  --color-neutral  delta ΔEOK 0.219 · 75 RGB
+        pixels: 96.1% differ (max 5%) → figma-qa/.results/swatch-figma-triage--matrix-10-1-diff.png
         approved: { when: { Size: ['Small'], Tone: ['Brand'] }, reason: 'TODO: why this deviation is deliberate (WCAG criterion or decision)' },
-      ✗ swatch · Size=Small, Tone=Neutral
-        approved: { when: { Size: ['Small'], Tone: ['Neutral'] }, reason: '…' },
+      ✗ swatch · Size=Large, Tone=Brand [value]
+        Component › Width (±1px)
+        - figma  40px
+        + story  24px  delta −16px
+        pixels: 61.6% differ (max 5%) → figma-qa/.results/swatch-figma-triage--matrix-10-4-diff.png
+        approved: { when: { Size: ['Large'], Tone: ['Brand'] }, reason: '…' },
 FAIL  Swatch › Blocked: 0 pass, 4 fail, 0 approved, 2 missing
       ✗ swatch · Size=Small, Tone=Brand [harness]
+        pixels: not measured: Capture blocked: div.fixture-blocker covers the cell. Harness issue, not a design diff.
         not measured: fix the capture, no approval can cover it
 WARN  Host Chromium (--host-browser): pixels are not comparable to CI.
 
@@ -123,7 +132,13 @@ HTML report: figma-qa/.results/report/index.html
   - `[token]`: another kit token than Figma's.
   - `[value]`: a spec number is off.
   - `[harness]`: the capture couldn't be measured.
-  - No tag: code can't tell, so this is where judgment goes. Open the HTML report for that cell's expected / actual rows and the pixel diff.
+  - No tag: code can't tell, so this is where judgment goes. The lines under the cell say what differs; the HTML report shows it with the images.
+- **Under each failing cell, what differs from Figma**, git-style:
+  - `<element> › <property> (<tolerance>)` heads one differing spec row; the tolerance is what still counts as a match.
+  - `- figma` is Figma's value and `+ story` the story's, each followed by the kit tokens it is, if any. `delta` (story minus Figma) ends the story's line when the row has one: a length, or a colour distance.
+  - At most 5 rows per cell, then `… K more rows in <results file>` (the story's results JSON holds them all).
+  - `pixels:` is the differing share against the story's max and the diff map's path, or `not measured: <reason>` when the capture couldn't be compared. The HTML report shows the same cell with its images.
+  - Red `-` and green `+` only on a terminal with `NO_COLOR` unset; piped or captured output is plain text.
 - **`approved: { … },`** is only for a deviation a human confirms is deliberate. Paste it into that block's `approved` and replace the `TODO` reason. A fix needs no entry. Harness cells print `not measured` instead, because no approval can cover them.
 - **`ERROR <message>`** without a story is a run-level harness or setup error. It is exit 2, and the message names the fix (often `figma-qa init` or `--host-browser`).
 - **`WARN`** lines never change the exit code. They cover host Chromium, Figma changed since the last sync, unnamed variables and `No Figma stories affected.`

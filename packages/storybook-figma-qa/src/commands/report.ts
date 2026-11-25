@@ -4,12 +4,13 @@
 // or has no code equivalent; 1: any cell differs from Figma; 2: a harness or setup error (blocked setup, unreachable
 // browser, misconfigured story, uncached set, story that failed to render or load).
 import type { TestModule, Vitest } from 'vitest/node';
-import type { FigmaRunSummary, FigmaStoryResult, FigmaStorySummary, RunPhase } from '../figma/types.ts';
+import type { FailingCell, FigmaRunSummary, FigmaStoryResult, FigmaStorySummary, RunPhase } from '../figma/types.ts';
 import { execFile, spawn } from 'node:child_process';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { BROWSER_WS_ENV, REFRESH_ENV, STORIES_KEY } from '../constants.ts';
 import { CI_SUMMARY_FILE, REPORT_DIR, RESULTS_DIR, resultsFile, RUN_FILE } from '../figma/types.ts';
+import { cellDiff } from '../figma/cell-diff.ts';
 import { failingCells } from '../figma/triage.ts';
 import { countCells, noCells, runExitCode, storyVerdict } from '../figma/verdict.ts';
 import { pickBrowser } from '../node/browser.ts';
@@ -258,7 +259,22 @@ async function findPanel(root: string, summary: FigmaRunSummary): Promise<string
     return base ? panelUrl(base, story.storyId) : null;
 }
 
-function printHuman(summary: FigmaRunSummary): void {
+/** The results of a failing cell the summary lists, to print what differs under it. */
+function failingResult(results: readonly FigmaStoryResult[], storyId: string | null, cell: FailingCell) {
+    const result = results.find((candidate) => {
+        return candidate.storyId === storyId;
+    });
+
+    return result?.blocks
+        .find((block) => {
+            return block.set.name === cell.block;
+        })
+        ?.cells.find((candidate) => {
+            return candidate.variant.name === cell.variant;
+        });
+}
+
+function printHuman(summary: FigmaRunSummary, results: readonly FigmaStoryResult[], colour: boolean): void {
     for (const story of summary.stories) {
         const { pass, fail, approved, missing } = story.cells;
         const counts = `${pass} pass, ${fail} fail, ${approved} approved, ${missing} missing`;
@@ -267,6 +283,12 @@ function printHuman(summary: FigmaRunSummary): void {
         for (const cell of story.failing) {
             const triage = cell.triage ? ` [${cell.triage}]` : '';
             print(`      ✗ ${cell.block} · ${cell.variant}${triage}`);
+            const result = failingResult(results, story.storyId, cell);
+            if (result && story.results) {
+                for (const line of cellDiff(result, { colour, resultsFile: story.results })) {
+                    print(`        ${line}`);
+                }
+            }
             if (cell.approved) {
                 // Deliberate? Paste into that block's `approved` and say why; a fix needs no entry.
                 print(`        approved: ${cell.approved},`);
@@ -521,7 +543,8 @@ export async function report(argv: string[]): Promise<number> {
     if (options.json) {
         print(JSON.stringify(summary, null, 4));
     } else {
-        printHuman(summary);
+        // Escape codes only for a person at a terminal (no-color.org): agents, pipes and CI logs read plain text.
+        printHuman(summary, ran.results, Boolean(process.stdout.isTTY) && !process.env.NO_COLOR);
         if (options.ci) {
             print(`Markdown summary: ${CI_SUMMARY_FILE}`);
         }
