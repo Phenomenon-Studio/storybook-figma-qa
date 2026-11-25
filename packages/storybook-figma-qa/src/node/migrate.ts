@@ -1,6 +1,6 @@
 // Format of a project's committed figma-qa state, and the steps that carry it forward. `<refsDir>/format.json` records
 // the format the committed refs (and the config beside them) are in; refs committed before the stamp existed are
-// format 1. Any config or refs format change is a major release and appends one step here (README "Upgrading").
+// format 1. Any config or refs format change is a major release and appends one step here (docs/upgrading.md).
 import { mkdir, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { readJson } from './json.ts';

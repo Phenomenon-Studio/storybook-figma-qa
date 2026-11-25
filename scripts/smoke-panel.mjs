@@ -5,11 +5,12 @@
 //   node scripts/smoke-panel.mjs --dev <fixture dir>       runs `figma-qa report` there, starts `storybook dev`, and
 //                                                          checks the panel shows the run's verdict for a Figma story
 //                                                          and the canvas renders its matrix from the dev route.
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, resolve } from 'node:path';
 import { chromium } from 'playwright';
+import { openPanel, serveDev } from './storybook-dev.mjs';
 
 const VERDICT_LABEL = { pass: 'Matches Figma', fail: 'Differs from Figma', error: 'Harness error' };
 const dev = process.argv[2] === '--dev';
@@ -45,49 +46,6 @@ async function serveStatic(root) {
             server.close();
         },
     };
-}
-
-/** `storybook dev` in the fixture, resolved once it prints its local URL. */
-async function serveDev(fixture) {
-    const port = 6100 + Math.floor(Math.random() * 800);
-    const child = spawn('pnpm', ['exec', 'storybook', 'dev', '--ci', '--port', String(port)], {
-        cwd: fixture,
-        stdio: ['ignore', 'pipe', 'pipe'],
-        detached: true,
-    });
-    let output = '';
-    await new Promise((done, fail) => {
-        const timer = setTimeout(() => {
-            process.kill(-child.pid);
-            fail(new Error(`storybook dev did not start:\n${output}`));
-        }, 120_000);
-        const read = (chunk) => {
-            output += chunk;
-            if (output.includes(`:${port}/`)) {
-                clearTimeout(timer);
-                done();
-            }
-        };
-        child.stdout.on('data', read);
-        child.stderr.on('data', read);
-        child.on('exit', (code) => {
-            clearTimeout(timer);
-            fail(new Error(`storybook dev exited ${code}:\n${output}`));
-        });
-    });
-
-    return {
-        url: `http://127.0.0.1:${port}`,
-        stop: () => {
-            child.removeAllListeners('exit');
-            process.kill(-child.pid);
-        },
-    };
-}
-
-async function openPanel(page, url, storyId) {
-    await page.goto(`${url}/?path=/story/${storyId}`);
-    await page.getByRole('tab', { name: 'Figma diff' }).click({ timeout: 60_000 });
 }
 
 let server;

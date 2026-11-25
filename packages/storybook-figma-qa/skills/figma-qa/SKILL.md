@@ -9,7 +9,7 @@ description: Check Storybook stories against the Figma UI kit with `figma-qa rep
 
 ## 1. Run
 
-`pnpm figma-report --json <scope>` (or `figma-qa report --json`), scoped as narrowly as the work: component names or story-id globs for components you touched or were asked about, `--changed [base]` for whatever this branch affects, nothing for the whole kit. Stdout is the run summary (README → "Reading the output"); the cell fields are in [TRIAGE.md](TRIAGE.md).
+`pnpm figma-report --json <scope>` (or `figma-qa report --json`), scoped as narrowly as the work: component names or story-id globs for components you touched or were asked about, `--changed [base]` for whatever this branch affects, nothing for the whole kit. Stdout is the run summary (https://phenomenon-studio.github.io/storybook-figma-qa/commands/report/#response-example); the cell fields are in [TRIAGE.md](TRIAGE.md).
 
 - **Exit 2**: a harness or setup error, not a design verdict. `errors[]` and `stories[].error` name the fix. Fix a story's configuration yourself; for setup, run `figma-qa doctor` and do what its lines say. A missing or rejected `FIGMA_TOKEN` is the user's to set: hand them the doctor's line and keep the token out of chat.
 - **`warnings[]` naming unnamed variables**: run the `figma-qa-variables` skill first, then re-run. Until then colour rows on those variables are guesses.
