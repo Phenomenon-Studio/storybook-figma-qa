@@ -18,6 +18,7 @@ import { figmaToken } from '../node/figma-api.ts';
 import { addonBlocked, openFigmaProject } from '../node/figma-project.ts';
 import { CONFIG_FILE } from '../figma/config.ts';
 import { loadProjectConfig } from '../node/config.ts';
+import { refsFormatBlocked } from '../node/migrate.ts';
 import { readJson } from '../node/json.ts';
 import { countIds, unnamedVariables, unnamedWarning } from '../node/variables.ts';
 import { parseFilters, scanStoryFile, selectStories } from '../figma/story-scan.ts';
@@ -371,11 +372,17 @@ async function run(root: string, options: Options, state: RunState): Promise<Ran
                 return changed;
             }
         }
+        let refsDir: string;
         try {
             // Rejected before Vitest starts: a typo'd key must not run with defaults.
-            await loadProjectConfig(root);
+            refsDir = (await loadProjectConfig(root)).config.refsDir;
         } catch (error) {
             return message(error);
+        }
+        // Refs in another format would be misread: an upgrade that skipped `figma-qa migrate`, or a downgrade.
+        const wrongFormat = await refsFormatBlocked({ root, refsDir });
+        if (wrongFormat) {
+            return wrongFormat;
         }
 
         // An unwired project fails before Vitest loads. The Vitest project check needs Vitest's config, so it waits

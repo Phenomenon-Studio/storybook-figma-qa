@@ -395,6 +395,44 @@ async function sameFile(a: string, b: string): Promise<boolean> {
 }
 
 /**
+ * The installed kit's `figma-qa migrate`, not this process's: `pnpm dlx … init` may be a newer kit than the project
+ * runs, and refs carried past the installed kit's format would be unreadable to it. A no-op when the refs are up to date,
+ * so it runs on every init: a kit upgrade is the only thing that makes it act.
+ */
+function ensureMigrated(root: string, options: Options, kitPending: boolean) {
+    if (options.dryRun && kitPending) {
+        line('plan', 'figma-qa migrate, after installing the kit');
+
+        return;
+    }
+    const kit = packageDir(root, PACKAGE_NAME);
+    if (!kit) {
+        throw new SetupError(`${PACKAGE_NAME} is in package.json but not installed: install dependencies, then re-run init.`);
+    }
+    if (!existsSync(path.join(kit, 'dist/commands/migrate.js'))) {
+        // A kit from before refs had a format: there is nothing it could migrate to.
+        line('ok', 'migrate: the installed kit predates figma-qa migrate');
+
+        return;
+    }
+    const result = spawnSync(
+        process.execPath,
+        [path.join(kit, 'dist/cli.js'), 'migrate', ...(options.dryRun ? ['--dry-run'] : [])],
+        { cwd: root, stdio: ['ignore', 'pipe', 'inherit'], encoding: 'utf8' }
+    );
+    // Its step lines read as init's; its closing line would end init's output early.
+    const lines = (result.stdout ?? '').split('\n').filter((text) => {
+        return text !== '' && !text.startsWith('figma-qa migrate:');
+    });
+    for (const text of lines) {
+        console.log(text);
+    }
+    if (result.status !== 0) {
+        throw new SetupError(`figma-qa migrate failed (${result.error?.message ?? (result.signal ? `killed by ${result.signal}` : `exit ${result.status}`)}): fix what it names, then re-run init.`);
+    }
+}
+
+/**
  * The kit's skills, copied by the skills CLI. Skipped when every copy already matches the installed kit, so a re-run
  * needs no network; a kit upgrade that changes a skill re-runs the CLI, which updates the copies and `skills-lock.json`.
  */
@@ -569,7 +607,7 @@ async function run(root: string, options: Options): Promise<number> {
     }
     if ((await ensureStorybook(root, options)) === 'planned') {
         // Nothing to read yet: the rest merges into what `storybook init` writes.
-        line('plan', 'then: the kit package, config merges, rules block, .npmrc scope line and skills');
+        line('plan', 'then: the kit package, config merges, rules block, .npmrc scope line, migrate and skills');
 
         return 0;
     }
@@ -578,6 +616,7 @@ async function run(root: string, options: Options): Promise<number> {
     const manual = await mergeConfigs(root, options, vitestPending);
     await ensureScript(root, options);
     await ensureRules(root, options);
+    ensureMigrated(root, options, kitPending);
     await ensureSkills(root, options, kitPending);
     await wizard(root, options);
     await ensureWorkflow(root);

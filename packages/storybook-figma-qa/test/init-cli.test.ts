@@ -135,6 +135,8 @@ describe.each(FIXTURES)('figma-qa init on a clean copy of fixtures/%s', (fixture
         expect(result.stdout).toContain('write package.json: "figma-report": "figma-qa report"');
         expect(result.stdout).toContain('write AGENTS.md: figma-qa rules block');
         expect(result.stdout).toContain('write CLAUDE.md: figma-qa rules block');
+        expect(result.stdout).toContain('ok    figma-qa/__refs__: refs format 1, up to date');
+        expect(result.stdout).not.toContain('figma-qa migrate:');
         expect(result.stdout).toContain(`run   ${SKILLS_ADD}`);
         // The PR check is the repo's choice: init prints the caller, never writes it.
         expect(result.stdout).toContain('todo  PR workflow: add .github/workflows/figma-qa.yml');
@@ -203,6 +205,27 @@ describe.each(FIXTURES)('figma-qa init on a clean copy of fixtures/%s', (fixture
         expect(result.code, result.stderr).toBe(0);
         expect(result.stdout).not.toMatch(/^(write|run|edit) /m);
         expect(await snapshot(dir)).toEqual(before);
+    });
+
+    it('runs the installed kit\'s migrate: stamps refs from before the stamp, refuses refs from a newer kit', async () => {
+        const stamp = path.join(dir, 'figma-qa/__refs__/format.json');
+        const committed = await readFile(stamp, 'utf8');
+        await rm(stamp);
+
+        const result = await figmaQa(['init', '--yes']);
+
+        expect(result.code, result.stderr).toBe(0);
+        expect(result.stdout).toMatch(/^write figma-qa\/__refs__\/format\.json: refs format 1\nok    skills: /m);
+        expect(await readFile(stamp, 'utf8')).toBe(committed);
+
+        await writeFile(stamp, '{ "format": 2 }\n');
+        const newer = await figmaQa(['init', '--yes']);
+        await writeFile(stamp, committed);
+
+        expect(newer.code).toBe(2);
+        expect(newer.stderr).toContain('figma-qa migrate: figma-qa/__refs__ is refs format 2; this kit reads format 1: upgrade the kit.');
+        expect(newer.stderr).toContain('figma-qa init: figma-qa migrate failed (exit 2): fix what it names, then re-run init.');
+        expect(newer.stdout).not.toContain('ok    skills: ');
     });
 
     it('finds a caller of the kit workflow under any name', async () => {

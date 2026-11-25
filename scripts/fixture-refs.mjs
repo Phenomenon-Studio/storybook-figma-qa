@@ -7,6 +7,7 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { crc32, deflateSync } from 'node:zlib';
+import { REFS_FORMAT, writeRefsFormat } from '../packages/storybook-figma-qa/dist/node/migrate.js';
 import { setManifest } from '../packages/storybook-figma-qa/dist/node/set-manifest.js';
 
 const SCALE = 2;
@@ -235,6 +236,7 @@ for (const { variants } of sets) {
 for (const fixture of ['sb10', 'sb11']) {
     const refs = path.join(import.meta.dirname, '..', 'fixtures', fixture, 'figma-qa', '__refs__');
     mkdirSync(refs, { recursive: true });
+    await writeRefsFormat({ root: refs, refsDir: '.' }, REFS_FORMAT);
     writeFileSync(path.join(refs, 'variables.json'), `${JSON.stringify(variables, null, 4)}\n`);
     for (const { id, variants } of sets) {
         const manifest = setManifest(setUrl(id), entries[id], VERSION, LAST_MODIFIED);

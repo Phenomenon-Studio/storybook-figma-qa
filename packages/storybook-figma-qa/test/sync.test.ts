@@ -105,7 +105,9 @@ describe.each(FIXTURES)('figma sync in fixtures/%s', (fixture) => {
 
     it('syncs an uncached set once per run for every story that links it', async () => {
         const committed = await files(path.join(root, SET_DIR));
+        const stamp = await readFile(path.join(root, REFS, 'format.json'), 'utf8');
         await rm(path.join(root, SET_DIR), { recursive: true });
+        await rm(path.join(root, REFS, 'format.json'));
 
         // Swatch and SwatchDrift link the same set.
         const { code, stderr, summary } = await report(fixture, ['Swatch.figma', 'SwatchDrift.figma'], token);
@@ -133,8 +135,9 @@ describe.each(FIXTURES)('figma sync in fixtures/%s', (fixture) => {
             scale: '2',
             use_absolute_bounds: 'true',
         });
-        // The committed refs are exactly what a sync of the recordings writes.
+        // The committed refs are exactly what a sync of the recordings writes, stamped with the kit's refs format.
         expect(await files(path.join(root, SET_DIR))).toEqual(committed);
+        expect(await readFile(path.join(root, REFS, 'format.json'), 'utf8')).toBe(stamp);
     });
 
     it('--refresh adopts a new version, re-rendering images only when the set changed', async () => {

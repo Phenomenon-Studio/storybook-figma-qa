@@ -10,6 +10,7 @@ import { REFRESH_ENV } from '../constants.ts';
 import { FIGMA_SCALE, figmaSlug, parseFigmaUrl, variantSlug } from '../figma/types.ts';
 import { download, figmaGet, figmaToken, FigmaTokenError } from './figma-api.ts';
 import { readJson } from './json.ts';
+import { ensureRefsFormat } from './migrate.ts';
 import { setManifest } from './set-manifest.ts';
 
 /** Raw `/nodes` entries per set, relative to the project root: gitignored, lets `--refresh` rebuild offline. */
@@ -235,6 +236,10 @@ async function syncFile(paths: SyncPaths, fileKey: string, urls: string[], meta:
         await mkdir(local.dir, { recursive: true });
         await writeFile(path.join(local.dir, 'manifest.json'), `${JSON.stringify(manifest, null, 4)}\n`);
         served.set(local.url, { manifest, warning: null });
+    }
+    if (built.length > 0) {
+        // The refs written are this kit's format; report refused older stamped refs before syncing.
+        await ensureRefsFormat(paths);
     }
 
     return served;

@@ -29,6 +29,8 @@ const USAGE = [
     '  --next: bootstrap Storybook 11 beta when the project has no Storybook',
     'scaffold <figma-url...> --story <path/Component.stories.tsx> [--dry-run]',
     '  every component set under the URLs → design entries in the sibling <Component>.figma.stories.tsx; re-runs append',
+    'migrate [--dry-run]',
+    '  runs the steps that carry committed refs and config to this kit\'s format; init runs it after an upgrade',
     'variables [<file> | -]',
     '  no argument: print the use_figma script naming unnamed variable ids; <file> or - (stdin): merge its output',
 ].join('\n');
@@ -81,6 +83,12 @@ async function main(argv: string[]): Promise<number> {
         const { scaffold } = await import('./commands/scaffold.ts');
 
         return await scaffold(rest);
+    }
+
+    if (name === 'migrate') {
+        const { migrate } = await import('./commands/migrate.ts');
+
+        return await migrate(rest);
     }
 
     console.error(`figma-qa ${name}: not implemented yet`);

@@ -8,7 +8,7 @@ Monorepo for `@phenomenon-studio/storybook-figma-qa`, the Figma QA kit: checks S
 | `packages/storybook-figma-qa/{.storybook,stories}` | The kit's own Storybook (SB 10, dev only): the "Figma diff" panel and HTML report fed fixed results, tested with play functions and axe by the `ui` Vitest project. |
 | `fixtures/sb10` | React + Vite project on Storybook 10.6, wired to the kit by hand. |
 | `fixtures/sb11` | Same on Storybook 11 beta. |
-| `fixtures/*/figma-qa/__refs__` | Committed Figma refs for the fixtures' synthetic `Swatch` and `Glyph` sets, plus `variables.json` naming the two colour variables Swatch binds (`Brand` maps to a kit token, `Tone/Neutral` doesn't). Fixtures have no `figma-qa.config.ts`: the config tests write one per run. |
+| `fixtures/*/figma-qa/__refs__` | Committed Figma refs for the fixtures' synthetic `Swatch` and `Glyph` sets, plus `variables.json` naming the two colour variables Swatch binds (`Brand` maps to a kit token, `Tone/Neutral` doesn't) and the `format.json` refs format stamp. Fixtures have no `figma-qa.config.ts`: the config tests write one per run. |
 | `packages/storybook-figma-qa/test/figma-api` | Recorded Figma REST responses for that set, served by the test stub (`FIGMA_API_URL`). `pnpm build && node scripts/fixture-refs.mjs` rewrites them and the refs synced from them. |
 
 Fixtures get an injected copy of the kit (`injectWorkspacePackages`), so its peers resolve against each fixture's Storybook / Vitest like a real install.
@@ -43,7 +43,7 @@ Without `gh`: a [classic personal access token](https://github.com/settings/toke
 1. **Storybook**: none → `npx storybook@^10 init` for React + Vite (`--next`: `storybook@next`, the 11 beta). Before 10.6 → exit 2 pointing at `storybook upgrade`; no React + Vite (or another framework in `.storybook/main`) → exit 2 naming what it found.
 2. **Packages**: project `.npmrc` gets only `@phenomenon-studio:registry=https://npm.pkg.github.com` (the token stays in the user's `~/.npmrc`), then the kit and, when missing, `storybook add @storybook/addon-vitest`.
 3. **Config** (magicast, literal shapes only): the kit in `.storybook/main` `addons`, `figmaQa()` in CSF Next `definePreview({ addons })` (a classic preview is left to the preset), `figmaQa()` in Vitest `test.projects`. Any other shape prints the exact snippet and exits 2 after the other steps.
-4. **Project**: `"figma-report": "figma-qa report"` script, a `<!-- figma-qa:start -->` rules block in `AGENTS.md` (and `CLAUDE.md` when it doesn't import `@AGENTS.md`; only text between the markers is rewritten), and the kit's skills (`figma-qa`: run the report and triage failing cells; `figma-qa-scaffold`: finish a scaffolded story; `figma-qa-variables`: name unnamed Figma variables) via the pinned `skills` CLI into `.agents/skills` and `.claude/skills` (skipped when the copies match the installed kit).
+4. **Project**: `"figma-report": "figma-qa report"` script, a `<!-- figma-qa:start -->` rules block in `AGENTS.md` (and `CLAUDE.md` when it doesn't import `@AGENTS.md`; only text between the markers is rewritten), then the installed kit's `figma-qa migrate` (a no-op unless an upgrade changed the refs format; see [Upgrading](#upgrading)), then the kit's skills (`figma-qa`: run the report and triage failing cells; `figma-qa-scaffold`: finish a scaffolded story; `figma-qa-variables`: name unnamed Figma variables) via the pinned `skills` CLI into `.agents/skills` and `.claude/skills` (skipped when the copies match the installed kit).
 
 5. **First-run wizard**: `doctor`'s human checks, in order: registry → Figma token → file access → Docker / image → variable names → Figma MCP. In a terminal it asks only for what it can act on:
    - `FIGMA_TOKEN`, when missing or rejected (input hidden; empty skips). Validated with `GET /v1/me`, then `/meta` on each Figma file (a token Figma rejects, or whose owner can't open a file, is asked for again) the Figma stories link (committed refs and URLs in Figma story files). It is written to `.env.local` only when `git check-ignore` says that file is ignored; otherwise init writes nothing and prints the line to add yourself. `FIGMA_TOKEN` in the environment wins over `.env.local`; every command reads both.
@@ -58,7 +58,7 @@ It never touches stories, components, tokens, the manager theme, other Vitest pr
 
 The one local command, aliased in a project's `package.json` as `"figma-report": "figma-qa report"` (`pnpm figma-report`). It never prompts and exits 0 (pass, approved or no code equivalent), 1 (a cell differs from Figma) or 2 (harness or setup error).
 
-1. **doctor**: the config loads; `.storybook/main` adds the kit and Vitest has the `figma-qa` project, else exit 2 pointing at `figma-qa init`.
+1. **doctor**: the config loads; the committed refs are in the kit's refs format (else exit 2 naming `figma-qa migrate`, or a kit upgrade for refs from a newer kit); `.storybook/main` adds the kit and Vitest has the `figma-qa` project, else exit 2 pointing at `figma-qa init`.
 2. **collect**: story files from Storybook's `stories` globs are scanned as text; only files with a `figma` tag literal, or `tags` the scan can't read, are handed to Vitest.
 3. **browser**, only once collect found a story to run (a `--changed` PR that reaches none pulls nothing): with Docker running, `docker compose up --wait` starts `mcr.microsoft.com/playwright:v<project's playwright>-noble` (compose project `figma-qa`, Playwright server on `127.0.0.1:3100` behind a per-user secret path kept in `~/.cache/figma-qa/browser-token`, left running for the next run). Without Docker, or with `--host-browser`, the host's Chromium runs and the summary and report warn that pixels are not comparable to CI. Docker running but the image failing to start is exit 2.
 4. **tests**: Figma sync happens lazily per story. Each cell is captured once and its pixel diff runs in Node while the next cell is captured; each ref is flattened onto the page backdrop once per (ref hash, backdrop), kept in memory and under `node_modules/.cache/figma-qa/flat-v1`, so an unchanged ref is never flattened again.
@@ -81,6 +81,14 @@ Positional filters intersect the scanned files: a filter with `*`, `?` or `--` i
 - **Stubs**: each renderer returns `null` under a `TODO(figma-qa)` comment, so `figma-qa report` lists every cell as missing and exits 0 until the bodies are written.
 - **Re-runs** append the sets the file doesn't link yet (matched by file key and node id) and change nothing else: renamed entries, their order and hand-written renderers stay. A linked set Figma no longer has is a warning; deleting it is the author's call. A file whose `design` entries, matrix story or top-level `renderCell` object aren't literals exits 2 with the lines to add by hand.
 - **Cache**: the fetched sets go to the local raw cache, so the first report syncs them without another `/nodes` call.
+
+## Upgrading
+
+The kit follows semver. A change to the `figma-qa.config.ts` format or to the committed refs format (`refsDir`: manifests, PNGs, `variables.json`) is a **major** release, and ships a `figma-qa migrate` step that carries a project's committed files to the new format.
+
+`<refsDir>/format.json` records the refs format, `{ "format": 1 }`; a sync writes it with the first refs, and refs committed before it existed are format 1. `figma-qa migrate [--dry-run]` runs, in order, every step after the recorded format and moves the stamp after each one, so a failed step re-runs from where it stopped. Up to date, it changes nothing. Commit what it writes.
+
+To upgrade: bump the kit (`pnpm add -D @phenomenon-studio/storybook-figma-qa@<version>`), then run `pnpm exec figma-qa init`. Init runs the installed kit's `migrate` (not that of a `dlx` kit), then re-installs the agent skills whose files changed. `report` exits 2 on refs in another format than the kit's: older ones need `figma-qa migrate`, newer ones a kit upgrade.
 
 ## Reading the output
 
@@ -229,6 +237,7 @@ ok    package: @phenomenon-studio/storybook-figma-qa
 ok    .storybook/main.ts: kit in addons
 ok    vitest.config.ts: figmaQa() in test.projects
 write AGENTS.md: figma-qa rules block
+ok    figma-qa/__refs__: refs format 1, up to date
 run   npx -y skills@1.9.0 add ./node_modules/@phenomenon-studio/storybook-figma-qa/skills --copy -y -a claude-code codex
 plan  first-run wizard: doctor's human checks, then the checklist
 todo  PR workflow: add .github/workflows/figma-qa.yml at the repo root, and a FIGMA_TOKEN repository secret:
@@ -335,6 +344,34 @@ Without a token it prints ``figma-qa scaffold: needs FIGMA_TOKEN, as it reads th
 With no argument, stdout is only runnable script: one block per Figma file, headed by `// Figma file <key>: N unnamed. Run with use_figma …`. Paste a whole block into `use_figma`. When nothing is unnamed, stdout is empty and stderr says `figma-qa variables: every bound variable is named in figma-qa/__refs__/variables.json.`
 
 With `<file>` or `-`, it merges the script's JSON output and prints what changed: `figma-qa variables: named 2: VariableID:1:2, VariableID:1:3; every bound variable is named.` A second line lists ids `not found in the file the script ran in`. They stay unnamed: the script ran in another file, or the variable was deleted.
+
+### `figma-qa migrate`
+
+Refs already in the kit's format:
+
+```text
+ok    figma-qa/__refs__: refs format 1, up to date
+figma-qa migrate: done
+```
+
+Refs committed before the format stamp existed (`format.json` removed):
+
+```text
+write figma-qa/__refs__/format.json: refs format 1
+figma-qa migrate: done
+```
+
+The same with `--dry-run`: the plan, nothing written:
+
+```text
+write figma-qa/__refs__/format.json: refs format 1
+figma-qa migrate: dry run, nothing written
+```
+
+- **`ok`**: the refs are in this kit's format, or there are none (`figma-qa/__refs__: no committed refs, nothing to migrate`); nothing is written.
+- **`write`**: the stamp is written. A step run adds a line per step before it, `run   refs format 1 → 2: <what the step changes>`; the stamp moves after each step.
+- **`figma-qa migrate: done`**: the closing line. Init prints the step lines but not this one. Before the kit is installed, `init --dry-run` prints `plan  figma-qa migrate, after installing the kit`; an installed kit from before `migrate` existed prints `ok    migrate: the installed kit predates figma-qa migrate`.
+- **Exit 2**, on stderr: refs from a newer kit (`figma-qa migrate: figma-qa/__refs__ is refs format 2; this kit reads format 1: upgrade the kit.`), a stamp that isn't `{ "format": <positive integer> }`, a step that failed (`refs format 1 → 2 failed: <reason>`; the stamp stays at the last finished step, so a re-run resumes there), or a config the kit can't load. `report` names the same refs format error in its summary `errors`; init stops at `figma-qa init: figma-qa migrate failed (exit 2): fix what it names, then re-run init.`
 
 ## PR workflow
 
