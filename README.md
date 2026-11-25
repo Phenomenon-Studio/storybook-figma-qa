@@ -429,7 +429,7 @@ An id with no name, or a name with no kit token, is matched by value: the row's 
 
 ## Releasing
 
-Bump `packages/storybook-figma-qa/package.json` `version`, merge, then publish a GitHub Release tagged `v<version>`. [`publish.yml`](.github/workflows/publish.yml) reruns CI on that commit and publishes to GitHub Packages with the workflow's `GITHUB_TOKEN` (no publish secret):
+Bump `packages/storybook-figma-qa/package.json` `version` in a PR (`main` takes changes only through a PR with green CI), merge, then publish a GitHub Release tagged `v<version>`. [`publish.yml`](.github/workflows/publish.yml) reruns CI on that commit and publishes to GitHub Packages with the workflow's `GITHUB_TOKEN`, then moves `vX` over SSH with the `TAG_DEPLOY_KEY` secret, the private half of a write deploy key. A ruleset lets only maintainers and deploy keys create, move or delete `v*` tags: `vX` is what every consumer's workflow runs with its `FIGMA_TOKEN`. Without the secret the package still publishes and the job fails, naming the tag to move by hand:
 
 | Release | Version | npm dist-tag | `vN` tag |
 | --- | --- | --- | --- |

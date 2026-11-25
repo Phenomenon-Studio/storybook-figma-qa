@@ -1,7 +1,7 @@
 name: Publish
 
 # A published GitHub Release publishes the package to GitHub Packages with the
-# workflow's own GITHUB_TOKEN: no publish secret exists.
+# workflow's own GITHUB_TOKEN; the TAG_DEPLOY_KEY secret moves `vN`.
 on:
     release:
         types: [published]
@@ -21,9 +21,10 @@ jobs:
         needs: ci
         runs-on: ubuntu-latest
         permissions:
-            # Moves the `vN` tag that consumers pin the reusable workflow to.
-            contents: write
+            contents: read
             packages: write
+        outputs:
+            major-tag: ${{ steps.release.outputs.major-tag }}
         defaults:
             run:
                 shell: bash
@@ -70,11 +71,38 @@ jobs:
               env:
                   NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: npm publish --tag "${{ steps.release.outputs.dist-tag }}"
-            # After publish, so `vN` never points at a commit whose package is missing.
+
+    # After publish, so `vN` never points at a commit whose package is missing.
+    # Its own job, the only one holding TAG_DEPLOY_KEY: the `v*` tag ruleset admits
+    # only maintainers and deploy keys, and no project code or dependency (pnpm
+    # install, build) runs on this runner before the key is written.
+    move-major-tag:
+        needs: publish
+        if: needs.publish.outputs.major-tag
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+        defaults:
+            run:
+                shell: bash
+        steps:
+            - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0, pinned: job holds the deploy key
+              with:
+                  persist-credentials: false
             - name: Move major tag
-              if: steps.release.outputs.major-tag
               env:
-                  MAJOR_TAG: ${{ steps.release.outputs.major-tag }}
+                  MAJOR_TAG: ${{ needs.publish.outputs.major-tag }}
+                  TAG_DEPLOY_KEY: ${{ secrets.TAG_DEPLOY_KEY }}
               run: |
-                  git tag -f "$MAJOR_TAG" "$GITHUB_SHA"
-                  git push -f origin "refs/tags/$MAJOR_TAG"
+                  if [[ -z "$TAG_DEPLOY_KEY" ]]; then
+                      echo "::error::TAG_DEPLOY_KEY is not set: the package is published, move $MAJOR_TAG to $GITHUB_SHA by hand"
+                      exit 1
+                  fi
+                  key="$RUNNER_TEMP/tag-deploy-key"
+                  trap 'rm -f "$key"' EXIT
+                  (umask 077 && printf '%s\n' "$TAG_DEPLOY_KEY" > "$key")
+                  # GitHub's published host key, pinned rather than trusted on first use.
+                  echo 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' > "$RUNNER_TEMP/known_hosts"
+                  export GIT_SSH_COMMAND="/usr/bin/ssh -F /dev/null -i $key -o IdentitiesOnly=yes -o UserKnownHostsFile=$RUNNER_TEMP/known_hosts"
+                  /usr/bin/git tag -f "$MAJOR_TAG" "$GITHUB_SHA"
+                  /usr/bin/git push -f "git@github.com:$GITHUB_REPOSITORY.git" "refs/tags/$MAJOR_TAG"
