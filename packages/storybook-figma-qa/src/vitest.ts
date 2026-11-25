@@ -46,6 +46,9 @@ export function figmaQa(): TestProjectInlineConfiguration {
             setupFiles: [fileURLToPath(new URL('./setup.js', import.meta.url))],
             // Every cell of a story is checked in one afterEach.
             hookTimeout: 300_000,
+            // The story's loader syncs its Figma sets (first run, `--refresh`): a cold sync of 9 Button sets took
+            // over the 15 s default, and a 429 is waited out for up to 60 s once (figma-api.ts).
+            testTimeout: 120_000,
             browser: {
                 enabled: true,
                 headless: true,
