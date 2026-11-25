@@ -117,8 +117,20 @@ try {
         }
         const map = panel.getByRole('img', { name: 'What differs' }).first();
         await map.waitFor();
+        // Visible is not loaded: wait for the image itself to settle, then check it decoded.
         const loaded = await map.evaluate((image) => {
-            return image.complete && image.naturalWidth > 0;
+            if (image.complete) {
+                return image.naturalWidth > 0;
+            }
+
+            return new Promise((resolve) => {
+                image.addEventListener('load', () => {
+                    resolve(image.naturalWidth > 0);
+                });
+                image.addEventListener('error', () => {
+                    resolve(false);
+                });
+            });
         });
         if (!loaded) {
             throw new Error('diff map image did not load from the dev route');
