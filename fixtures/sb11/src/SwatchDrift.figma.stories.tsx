@@ -12,7 +12,7 @@ const meta = preview.meta({
     parameters: { design: [{ name: 'swatch', type: 'figma', url: SWATCH_SET }] },
 });
 
-/** Same matrix without the approval: the Neutral cells deliberately differ from Figma, exit 1. */
+/** Same matrix without the approval: the Neutral cells deliberately differ from Figma, exit 1 (proof PR). */
 export const Matrix = meta.story({
     parameters: { figmaMatrix: { blocks: [{ name: 'swatch', layout: { sections: 'Size', columns: 'Tone' } }] } },
     render: (_args, context) => {

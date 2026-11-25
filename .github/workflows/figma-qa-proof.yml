@@ -1,0 +1,18 @@
+# Throwaway: proves the reusable PR workflow on fixtures/sb11 (ticket 17). Never merged.
+name: Figma QA proof
+
+on: pull_request
+
+permissions:
+    contents: read
+    packages: read
+    pull-requests: write
+
+jobs:
+    figma-qa:
+        uses: ./.github/workflows/figma-qa.yml
+        secrets:
+            FIGMA_TOKEN: ${{ secrets.FIGMA_TOKEN }}
+        with:
+            working-directory: fixtures/sb11
+            setup: pnpm build && pnpm install --frozen-lockfile --offline
