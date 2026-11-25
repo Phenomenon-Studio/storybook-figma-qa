@@ -6,7 +6,7 @@
 // unpulled browser image (never under `--yes`, `--dry-run` or without a terminal), then the checklist and PR caller.
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { glob } from 'tinyglobby';
 import { PACKAGE_NAME } from '../constants.ts';
@@ -14,6 +14,7 @@ import { resolveConfig } from '../figma/config.ts';
 import { pullImage } from '../node/browser.ts';
 import { type Check, fileAccessChecks, humanChecks, printCheck, SEAT_NOTE } from '../node/checks.ts';
 import { loadProjectConfig } from '../node/config.ts';
+import { readJson } from '../node/json.ts';
 import { ENV_FILE, FigmaTokenError, figmaGet } from '../node/figma-api.ts';
 import { MAIN_FILES } from '../node/figma-project.ts';
 import { type MergeResult, mergeMain, mergePreview, mergeVitest, VITEST_SNIPPET } from '../node/merge.ts';
@@ -432,9 +433,15 @@ function ensureMigrated(root: string, options: Options, kitPending: boolean) {
     }
 }
 
+/** What `skills-lock.json` records per installed skill; init reads only `source`. */
+type SkillsLock = { skills?: Record<string, { source?: string }> };
+
 /**
  * The kit's skills, copied by the skills CLI. Skipped when every copy already matches the installed kit, so a re-run
  * needs no network; a kit upgrade that changes a skill re-runs the CLI, which updates the copies and `skills-lock.json`.
+ * The CLI only adds, so what a newer kit dropped is removed first: a skill whose lock entry points at the kit's skills
+ * but which the kit no longer ships (`skills remove`), and files in a kit skill's copies the kit no longer has. Skills
+ * from any other source are the project's.
  */
 async function ensureSkills(root: string, options: Options, kitPending: boolean) {
     if (options.dryRun && kitPending) {
@@ -447,7 +454,41 @@ async function ensureSkills(root: string, options: Options, kitPending: boolean)
         throw new SetupError(`${PACKAGE_NAME} is in package.json but not installed: install dependencies, then re-run init.`);
     }
     const source = path.join(kit, 'skills');
+    // Relative, so `skills-lock.json` records a path every clone resolves.
+    const relative = `./${path.relative(root, source).split(path.sep).join('/')}`;
     const files = await glob('**/*', { cwd: source, dot: true });
+    const skills = new Set(
+        files.map((file) => {
+            return file.split('/')[0] ?? file;
+        })
+    );
+    const lock = await readJson<SkillsLock>(path.join(root, 'skills-lock.json'));
+    const dropped = Object.entries(lock?.skills ?? {})
+        .filter(([name, entry]) => {
+            return entry.source === relative && !skills.has(name);
+        })
+        .map(([name]) => {
+            return name;
+        });
+    const shipped = new Set(files);
+    const kitSkills = [...skills].map((skill) => {
+        return `${skill}/**/*`;
+    });
+    const stale = (
+        await Promise.all(
+            SKILL_DIRS.map(async (dir) => {
+                const copies = await glob(kitSkills, { cwd: path.join(root, dir), dot: true });
+
+                return copies
+                    .filter((file) => {
+                        return !shipped.has(file);
+                    })
+                    .map((file) => {
+                        return `${dir}/${file}`;
+                    });
+            })
+        )
+    ).flat();
     const checks = await Promise.all(
         files.flatMap((file) => {
             return SKILL_DIRS.map((dir) => {
@@ -455,13 +496,22 @@ async function ensureSkills(root: string, options: Options, kitPending: boolean)
             });
         })
     );
-    if (checks.every(Boolean)) {
-        line('ok', `skills: ${SKILL_DIRS.join(', ')}`);
+    if (dropped.length > 0) {
+        runCommand(root, options, ['npx', '-y', SKILLS_CLI, 'remove', ...dropped, '-y'], { DISABLE_TELEMETRY: '1' });
+    }
+    for (const file of stale.sort()) {
+        line('write', `${file}: removed, the kit no longer ships it`);
+        if (!options.dryRun) {
+            await rm(path.join(root, file));
+        }
+    }
+    if (checks.every(Boolean) && stale.length === 0) {
+        if (dropped.length === 0) {
+            line('ok', `skills: ${SKILL_DIRS.join(', ')}`);
+        }
 
         return;
     }
-    // Relative, so `skills-lock.json` records a path every clone resolves.
-    const relative = `./${path.relative(root, source).split(path.sep).join('/')}`;
     runCommand(root, options, ['npx', '-y', SKILLS_CLI, 'add', relative, '--copy', '-y', '-a', ...SKILL_AGENTS], {
         DISABLE_TELEMETRY: '1',
     });

@@ -43,7 +43,7 @@ Without `gh`: a [classic personal access token](https://github.com/settings/toke
 1. **Storybook**: none → `npx storybook@^10 init` for React + Vite (`--next`: `storybook@next`, the 11 beta). Before 10.6 → exit 2 pointing at `storybook upgrade`; no React + Vite (or another framework in `.storybook/main`) → exit 2 naming what it found.
 2. **Packages**: project `.npmrc` gets only `@phenomenon-studio:registry=https://npm.pkg.github.com` (the token stays in the user's `~/.npmrc`), then the kit and, when missing, `storybook add @storybook/addon-vitest`.
 3. **Config** (magicast, literal shapes only): the kit in `.storybook/main` `addons`, `figmaQa()` in CSF Next `definePreview({ addons })` (a classic preview is left to the preset), `figmaQa()` in Vitest `test.projects`. Any other shape prints the exact snippet and exits 2 after the other steps.
-4. **Project**: `"figma-report": "figma-qa report"` script, a `<!-- figma-qa:start -->` rules block in `AGENTS.md` (and `CLAUDE.md` when it doesn't import `@AGENTS.md`; only text between the markers is rewritten), then the installed kit's `figma-qa migrate` (a no-op unless an upgrade changed the refs format; see [Upgrading](#upgrading)), then the kit's skills (`figma-qa`: run the report and triage failing cells; `figma-qa-scaffold`: finish a scaffolded story; `figma-qa-variables`: name unnamed Figma variables) via the pinned `skills` CLI into `.agents/skills` and `.claude/skills` (skipped when the copies match the installed kit).
+4. **Project**: `"figma-report": "figma-qa report"` script, a `<!-- figma-qa:start -->` rules block in `AGENTS.md` (and `CLAUDE.md` when it doesn't import `@AGENTS.md`; only text between the markers is rewritten), then the installed kit's `figma-qa migrate` (a no-op unless an upgrade changed the refs format; see [Upgrading](#upgrading)), then the kit's skills (`figma-qa`: run the report and triage failing cells; `figma-qa-scaffold`: finish a scaffolded story; `figma-qa-variables`: name unnamed Figma variables) via the pinned `skills` CLI into `.agents/skills` and `.claude/skills` (skipped when the copies match the installed kit). The CLI only adds, so first init removes what a newer kit dropped: a skill whose `skills-lock.json` entry points at the kit's `skills` but which the kit no longer ships (`skills remove <name> -y`), and files in a kit skill's copies that the kit no longer has. Skills from any other source are left alone.
 
 5. **First-run wizard**: `doctor`'s human checks, in order: registry → Figma token → file access → Docker / image → variable names → Figma MCP. In a terminal it asks only for what it can act on:
    - `FIGMA_TOKEN`, when missing or rejected (input hidden; empty skips). Validated with `GET /v1/me`, then `/meta` on each Figma file (a token Figma rejects, or whose owner can't open a file, is asked for again) the Figma stories link (committed refs and URLs in Figma story files). It is written to `.env.local` only when `git check-ignore` says that file is ignored; otherwise init writes nothing and prints the line to add yourself. `FIGMA_TOKEN` in the environment wins over `.env.local`; every command reads both.
@@ -301,6 +301,21 @@ figma-qa init: done
 - **`Figma token:` … `FIGMA_TOKEN (hidden; empty to skip):`**: the token prompt, shown only when the token is missing or rejected. A rejected token prints `todo  figma token: Figma rejected it; paste another` and asks again. When `.env.local` isn't gitignored it prints `todo  .env.local: not gitignored, so the token is not written. Ignore it, then add this line:` and the `FIGMA_TOKEN=…` line, and writes nothing.
 - **`Pull the pinned browser image …? [Y/n]`**: only when Docker runs and the image is missing; Enter means yes.
 - **`figma-qa init: checklist`**: doctor's human checks after the prompts, read as in [`figma-qa doctor`](#figma-qa-doctor), then the PR workflow line. Under `--yes` or without a terminal only this part prints. A `FIGMA_TOKEN` from the environment that Figma rejects is never asked for (a token saved to `.env.local` would not be read): `block figma token: Figma rejected FIGMA_TOKEN from env`, with the fix.
+
+After an upgrade that dropped a skill (`figma-qa-old`) and a file of the `figma-qa` skill (`fixtures/sb11` copy; the skills CLI's own progress output shortened):
+
+```text
+ok    figma-qa/__refs__: refs format 1, up to date
+run   npx -y skills@1.9.0 remove figma-qa-old -y
+…
+write .agents/skills/figma-qa/OLD.md: removed, the kit no longer ships it
+write .claude/skills/figma-qa/OLD.md: removed, the kit no longer ships it
+run   npx -y skills@1.9.0 add ./node_modules/@phenomenon-studio/storybook-figma-qa/skills --copy -y -a claude-code codex
+…
+```
+
+- **`run   … remove <names> -y`**: the dropped skills, from both agent dirs and `skills-lock.json`.
+- **`write <file>: removed, the kit no longer ships it`**: a stale file in a kit skill's copy, deleted; the `add` after it refreshes the rest.
 
 A re-run on a set-up project writes nothing: its steps print `ok`, and the checklist shows only what is still missing. If a config has a shape init won't edit, init prints `figma-qa init: one file needs this edit by hand, then re-run init:` and the exact snippet on stderr, then exits 2.
 

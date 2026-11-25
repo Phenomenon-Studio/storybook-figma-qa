@@ -207,6 +207,56 @@ describe.each(FIXTURES)('figma-qa init on a clean copy of fixtures/%s', (fixture
         expect(await snapshot(dir)).toEqual(before);
     });
 
+    it(
+        'removes what a newer kit dropped from its skills, and leaves the project\'s own skills alone',
+        async () => {
+            const lockFile = path.join(dir, 'skills-lock.json');
+            const lock = JSON.parse(await readFile(lockFile, 'utf8')) as { skills: Record<string, unknown> };
+            const committedLock = await readFile(lockFile, 'utf8');
+            // A skill an older kit shipped and this one doesn't, a file this kit dropped, and a skill of the project's.
+            lock.skills['figma-qa-old'] = lock.skills['figma-qa'];
+            lock.skills['own-skill'] = { source: 'someone/skills', sourceType: 'github' };
+            await writeFile(lockFile, `${JSON.stringify(lock, null, 2)}\n`);
+            for (const agent of ['.agents', '.claude']) {
+                await writeFiles(dir, {
+                    [`${agent}/skills/figma-qa-old/SKILL.md`]: '---\nname: figma-qa-old\ndescription: Old.\n---\n',
+                    [`${agent}/skills/figma-qa/OLD.md`]: 'Dropped reference.\n',
+                    [`${agent}/skills/own-skill/SKILL.md`]: '---\nname: own-skill\ndescription: Own.\n---\n',
+                });
+            }
+
+            const result = await figmaQa(['init', '--yes']);
+
+            expect(result.code, result.stderr).toBe(0);
+            expect(result.stdout).toContain(`run   npx -y skills@1.9.0 remove figma-qa-old -y`);
+            expect(result.stdout).toContain(`run   ${SKILLS_ADD}`);
+            const files = await glob('{.agents,.claude}/skills/**/*', { cwd: dir, dot: true });
+            expect(files.sort()).toEqual(
+                ['.agents', '.claude']
+                    .flatMap((agent) => {
+                        return [
+                            ...SKILL_FILES.map((file) => {
+                                return `${agent}/skills/${file}`;
+                            }),
+                            `${agent}/skills/own-skill/SKILL.md`,
+                        ];
+                    })
+                    .sort()
+            );
+            const after = JSON.parse(await readFile(lockFile, 'utf8')) as { skills: Record<string, unknown> };
+            expect(Object.keys(after.skills).sort()).toEqual(['figma-qa', 'figma-qa-scaffold', 'figma-qa-variables', 'own-skill']);
+
+            for (const agent of ['.agents', '.claude']) {
+                await rm(path.join(dir, agent, 'skills/own-skill'), { recursive: true });
+            }
+            await writeFile(lockFile, committedLock);
+            const rerun = await figmaQa(['init', '--yes']);
+
+            expect(rerun.stdout, rerun.stderr).not.toMatch(/^(write|run|edit) /m);
+        },
+        INSTALL_TIMEOUT
+    );
+
     it('runs the installed kit\'s migrate: stamps refs from before the stamp, refuses refs from a newer kit', async () => {
         const stamp = path.join(dir, 'figma-qa/__refs__/format.json');
         const committed = await readFile(stamp, 'utf8');
