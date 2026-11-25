@@ -13,7 +13,11 @@ export type MigrationProject = { root: string; refsDir: string };
  */
 export type MigrationStep = { description: string; run: (project: MigrationProject) => Promise<void> };
 
-/** In order: `STEPS[n]` migrates format n + 1 to n + 2. Append only; a released step never changes. */
+/**
+ * In order: `STEPS[n]` migrates format n + 1 to n + 2. Append only; a released step never changes.
+ * The first step that changes the config format must also change how `figma-qa migrate` starts: it validates the config
+ * (for `refsDir`) before any step, so an old config the new kit rejects stops it, and it runs no step without refs.
+ */
 export const STEPS: readonly MigrationStep[] = [];
 
 /** The format this kit reads and writes. */
