@@ -25,6 +25,13 @@ export async function runCli(fixture: Fixture, args: string[], env: Record<strin
     return await runIn(fixtureDir(fixture), ['pnpm', 'exec', 'figma-qa', ...args], env);
 }
 
+/** `doctor` without the host's Docker (AGENTS.md: tests never use real Docker): the fake answers "not running". */
+export async function doctor(fixture: Fixture) {
+    const fake = fileURLToPath(new URL('./fake-docker', import.meta.url));
+
+    return await runCli(fixture, ['doctor'], { PATH: `${fake}${path.delimiter}${process.env.PATH ?? ''}`, FAKE_DOCKER: 'down' });
+}
+
 /** The kit's own build, for projects with no installed kit (init refusals). */
 export const KIT_BIN = fileURLToPath(new URL('../dist/cli.js', import.meta.url));
 
@@ -135,4 +142,21 @@ export function inTerminal(fixture: Fixture, args: string[], env: Record<string,
             resolve(stdout);
         });
     });
+}
+
+const PTY_ANSWER = fileURLToPath(new URL('./pty-answer.py', import.meta.url));
+
+/**
+ * `command` in `cwd` behind a pseudo-terminal, typing each answer once its prompt shows (`[prompt, answer]` in order).
+ * Resolves with the exit code and everything the terminal showed.
+ */
+export async function answering(
+    cwd: string,
+    command: string[],
+    answers: [string, string][],
+    env: Record<string, string> = {}
+): Promise<{ code: number; output: string }> {
+    const { code, stdout } = await runIn(cwd, ['python3', PTY_ANSWER, JSON.stringify(answers), ...command], env);
+
+    return { code, output: stdout };
 }

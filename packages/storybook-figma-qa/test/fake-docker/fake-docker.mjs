@@ -1,4 +1,5 @@
 // The Docker CLI as `figma-qa report` uses it, without Docker. `FAKE_DOCKER` = `up` (default) | `down` | `fail`.
+// `FAKE_DOCKER_IMAGE` = `absent` (default) | `present`: `docker image inspect`'s answer, until a logged `docker pull`.
 // `docker info` answers by mode; `docker compose … up --wait` reads the compose file from stdin and serves its port
 // with the project's own Playwright (`run-server`), so the report really connects to a remote browser.
 // Every call is appended to `FAKE_DOCKER_LOG` as JSON (args, then the compose file); the server's pid goes to
@@ -33,6 +34,15 @@ function listening(port) {
 
 if (args[0] === 'info') {
     process.exit(mode === 'down' ? 1 : 0);
+}
+if (args[0] === 'image' && args[1] === 'inspect') {
+    const log = process.env.FAKE_DOCKER_LOG ? readFileSync(process.env.FAKE_DOCKER_LOG, 'utf8') : '';
+    const pulled = log.includes(JSON.stringify(['pull', args.at(-1)]));
+    process.exit(process.env.FAKE_DOCKER_IMAGE === 'present' || pulled ? 0 : 1);
+}
+if (args[0] === 'pull') {
+    console.log(`fake docker: pulled ${args[1]}`);
+    process.exit(0);
 }
 if (args[0] !== 'compose') {
     console.error(`fake docker: unexpected ${args.join(' ')}`);

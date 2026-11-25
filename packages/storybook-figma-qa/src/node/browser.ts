@@ -9,6 +9,8 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import { BROWSER_PORT, BROWSER_PORT_ENV } from '../constants.ts';
 
+export const PLAYWRIGHT_MISSING = 'Pinned browser: playwright is not installed in this project; run `figma-qa init`.';
+
 export type Browser =
     | { kind: 'image'; wsEndpoint: string }
     | {
@@ -40,6 +42,40 @@ function playwrightVersion(root: string): string {
     const manifest = require('playwright/package.json') as { version: string };
 
     return manifest.version;
+}
+
+/** The pinned browser image for the project's Playwright; null when playwright isn't installed. */
+export function pinnedImage(root: string): { image: string; version: string } | null {
+    let version: string;
+    try {
+        version = playwrightVersion(root);
+    } catch {
+        return null;
+    }
+
+    return { image: `mcr.microsoft.com/playwright:v${version}-noble`, version };
+}
+
+/** Whether Docker already holds `image`: a report then starts it without a pull. */
+export function imagePulled(image: string): Promise<boolean> {
+    return new Promise((resolve) => {
+        execFile('docker', ['image', 'inspect', '--format', '{{.Id}}', image], { timeout: 15_000 }, (error) => {
+            resolve(!error);
+        });
+    });
+}
+
+/** `docker pull`, its progress on the terminal. */
+export function pullImage(image: string): Promise<boolean> {
+    return new Promise((resolve) => {
+        const child = spawn('docker', ['pull', image], { stdio: 'inherit' });
+        child.on('error', () => {
+            resolve(false);
+        });
+        child.on('close', (code) => {
+            resolve(code === 0);
+        });
+    });
 }
 
 /**
@@ -127,13 +163,11 @@ export async function pickBrowser(root: string, options: { hostBrowser: boolean 
     if (!(await dockerRunning())) {
         return { kind: 'host', reason: 'Docker is not running' };
     }
-    let version: string;
-    try {
-        version = playwrightVersion(root);
-    } catch {
-        throw new Error('Pinned browser: playwright is not installed in this project; run `figma-qa init`.');
+    const pinned = pinnedImage(root);
+    if (!pinned) {
+        throw new Error(PLAYWRIGHT_MISSING);
     }
-    const image = `mcr.microsoft.com/playwright:v${version}-noble`;
+    const { image, version } = pinned;
     const port = Number(process.env[BROWSER_PORT_ENV] ?? BROWSER_PORT);
     const token = await serverToken();
     try {

@@ -3,11 +3,11 @@ import type { StoryResult } from './cli.ts';
 import { readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { fixtureDir, FIXTURES, report, runCli, storyResult } from './cli.ts';
+import { doctor, fixtureDir, FIXTURES, report, runCli, storyResult } from './cli.ts';
 
 describe.each(FIXTURES)('figma-qa in fixtures/%s', (fixture) => {
     it('doctor exits 0', async () => {
-        const result = await runCli(fixture, ['doctor']);
+        const result = await doctor(fixture);
 
         expect(result.code, result.stderr).toBe(0);
         expect(result.stdout).toContain('doctor');

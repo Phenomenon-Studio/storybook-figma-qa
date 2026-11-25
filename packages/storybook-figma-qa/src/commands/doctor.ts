@@ -1,7 +1,8 @@
-// `figma-qa doctor`: setup checks, one line each. Exit 2 when a check blocks a run; warnings keep exit 0.
+// `figma-qa doctor`: setup checks, one line each (and a `fix:` line under any that isn't ok). The kit wiring first,
+// then the human items `init`'s wizard sets up (node/checks.ts). Exit 2 when a check blocks a run; others keep exit 0.
 import { glob } from 'tinyglobby';
 import { CONFIG_FILE } from '../figma/config.ts';
-import { dockerRunning } from '../node/browser.ts';
+import { humanChecks, printCheck } from '../node/checks.ts';
 import { loadProjectConfig } from '../node/config.ts';
 import { addonBlocked, openFigmaProject } from '../node/figma-project.ts';
 
@@ -48,12 +49,15 @@ export async function doctor(): Promise<number> {
         return 2;
     }
     console.log('ok    setup: kit addon in .storybook/main, figma-qa Vitest project');
-    if (await dockerRunning()) {
-        console.log('ok    browser: Docker runs; report starts the pinned browser image');
-    } else {
-        console.log('warn  browser: Docker is not running; report uses host Chromium (pixels not comparable to CI)');
+    const checks = await humanChecks(root, config.refsDir);
+    for (const check of checks) {
+        printCheck(check);
     }
     console.log('figma-qa doctor: done');
 
-    return 0;
+    return checks.some((check) => {
+        return check.status === 'block';
+    })
+        ? 2
+        : 0;
 }

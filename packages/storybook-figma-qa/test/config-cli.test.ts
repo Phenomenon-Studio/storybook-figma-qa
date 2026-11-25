@@ -5,7 +5,7 @@ import type { Fixture, StoryResult } from './cli.ts';
 import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { fixtureDir, FIXTURES, report, runCli, storyResult } from './cli.ts';
+import { doctor, fixtureDir, FIXTURES, report, storyResult } from './cli.ts';
 
 const CONFIG = 'figma-qa.config.ts';
 const DEFAULT_REFS = 'figma-qa/__refs__';
@@ -73,7 +73,7 @@ describe.each(FIXTURES)('figma-qa config in fixtures/%s', (fixture) => {
 
     describe('without a config', () => {
         it('doctor reports defaults and warns that no icons are found', async () => {
-            const result = await runCli(fixture, ['doctor']);
+            const result = await doctor(fixture);
 
             expect(result.code, result.stderr).toBe(0);
             expect(result.stdout).toContain(`no ${CONFIG}, defaults apply`);
@@ -121,7 +121,7 @@ describe.each(FIXTURES)('figma-qa config in fixtures/%s', (fixture) => {
         it('doctor finds the configured icons', async () => {
             await configure();
 
-            const result = await runCli(fixture, ['doctor']);
+            const result = await doctor(fixture);
 
             expect(result.code, result.stderr).toBe(0);
             expect(result.stdout).toContain(`config: ${CONFIG}`);
@@ -170,9 +170,9 @@ describe.each(FIXTURES)('figma-qa config in fixtures/%s', (fixture) => {
             expect(summary.stories).toEqual([]);
             expect(summary.errors).toEqual([expect.stringContaining(message)]);
 
-            const doctor = await runCli(fixture, ['doctor']);
-            expect(doctor.code).toBe(2);
-            expect(doctor.stderr).toContain(message);
+            const checked = await doctor(fixture);
+            expect(checked.code).toBe(2);
+            expect(checked.stderr).toContain(message);
         });
     });
 });

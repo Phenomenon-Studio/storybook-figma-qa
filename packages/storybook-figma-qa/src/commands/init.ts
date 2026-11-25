@@ -2,17 +2,26 @@
 // so a re-run on a set-up project changes nothing, and `--dry-run` prints the plan without writing or running anything.
 // Exit 2: a refused project, a failed install, or a config shape the user must edit by hand (snippet printed).
 // It never touches stories, components, tokens, the manager theme, other Vitest projects, git or CI files.
+// It ends with the first-run wizard: doctor's human checks, a prompt only for a missing or rejected Figma token and an
+// unpulled browser image (never under `--yes`, `--dry-run` or without a terminal), then the checklist and PR caller.
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { glob } from 'tinyglobby';
 import { PACKAGE_NAME } from '../constants.ts';
+import { resolveConfig } from '../figma/config.ts';
+import { pullImage } from '../node/browser.ts';
+import { type Check, fileAccessChecks, humanChecks, printCheck, SEAT_NOTE } from '../node/checks.ts';
+import { loadProjectConfig } from '../node/config.ts';
+import { ENV_FILE, FigmaTokenError, figmaGet } from '../node/figma-api.ts';
 import { MAIN_FILES } from '../node/figma-project.ts';
 import { type MergeResult, mergeMain, mergePreview, mergeVitest, VITEST_SNIPPET } from '../node/merge.ts';
+import { ask, confirm, interactive } from '../node/prompt.ts';
 import { callerWorkflow, REGISTRY_LINE, usesKitWorkflow, withRegistryLine, withRulesBlock } from '../node/project-text.ts';
 
-type Options = { dryRun: boolean; next: boolean };
+/** `ask`: the wizard may prompt (a terminal, no `--yes`, no `--dry-run`). */
+type Options = { dryRun: boolean; next: boolean; ask: boolean };
 
 type PackageJson = {
     packageManager?: string;
@@ -49,8 +58,9 @@ export async function init(args: string[]): Promise<number> {
 
         return 2;
     }
-    // `--yes` is accepted for scripts and CI: init asks nothing yet (the first-run wizard will).
-    const options = { dryRun: args.includes('--dry-run'), next: args.includes('--next') };
+    const dryRun = args.includes('--dry-run');
+    const yes = args.includes('--yes') || args.includes('-y');
+    const options = { dryRun, next: args.includes('--next'), ask: !yes && !dryRun && interactive() };
     try {
         return await run(process.cwd(), options);
     } catch (error) {
@@ -445,6 +455,114 @@ async function ensureWorkflow(root: string) {
     console.log(`\n${callerWorkflow({ kitVersion: await kitVersion(), workingDirectory })}`);
 }
 
+/** Whether git ignores `file`: the only condition under which init writes a secret into the project. */
+function gitIgnored(root: string, file: string): boolean {
+    return spawnSync('git', ['check-ignore', '-q', file], { cwd: root }).status === 0;
+}
+
+/** `source` with its FIGMA_TOKEN line set to `token`, every other line kept. */
+function withToken(source: string | null, token: string): string {
+    const lines = (source ?? '').split('\n').filter((line) => {
+        return !/^\s*(export\s+)?FIGMA_TOKEN\s*=/.test(line);
+    });
+    if (lines.at(-1) === '') {
+        lines.pop();
+    }
+
+    return `${[...lines, `FIGMA_TOKEN=${token}`].join('\n')}\n`;
+}
+
+/**
+ * Asks for a token until Figma takes one (`/v1/me`, then `/meta` on each file the Figma stories link) or the answer is
+ * empty, then saves it if `.env.local` is ignored.
+ */
+async function promptToken(root: string, refsDir: string) {
+    console.log(`\nFigma token: create one (scope: File content, read-only) in Figma → Settings → Security.\nSeat: ${SEAT_NOTE}.`);
+    for (;;) {
+        const token = await ask('FIGMA_TOKEN (hidden; empty to skip): ', { hidden: true });
+        if (!token) {
+            return;
+        }
+        try {
+            const me = await figmaGet<{ handle?: string; email?: string }>('/me', token);
+            line('ok', `figma token: ${me.handle ?? me.email ?? 'valid'}`);
+        } catch (error) {
+            if (error instanceof FigmaTokenError) {
+                line('todo', 'figma token: Figma rejected it; paste another');
+                continue;
+            }
+            line('todo', `figma token: not verified (${error instanceof Error ? error.message : String(error)}); not saved`);
+
+            return;
+        }
+        const files = await fileAccessChecks(root, refsDir, token);
+        const blocked = files.find((check) => {
+            return check.status === 'block';
+        });
+        if (blocked) {
+            line('todo', `${blocked.text}; paste a token whose owner can`);
+            continue;
+        }
+        const file = path.join(root, ENV_FILE);
+        if (!gitIgnored(root, ENV_FILE)) {
+            // A secret in a file git would commit: the human decides where it goes.
+            line('todo', `${ENV_FILE}: not gitignored, so the token is not written. Ignore it, then add this line:`);
+            console.log(`\n    FIGMA_TOKEN=${token}\n`);
+
+            return;
+        }
+        line('write', `${ENV_FILE}: FIGMA_TOKEN`);
+        const existing = await readText(file);
+        await writeFile(file, withToken(existing, token), existing === null ? { mode: 0o600 } : {});
+
+        return;
+    }
+}
+
+/**
+ * The first-run wizard: doctor's human checks, a prompt for each one init can act on, then the remaining checklist.
+ * Without `ask` it only prints the checklist: no prompt, no secret written, no pull. A dry run plans it.
+ */
+async function wizard(root: string, options: Options) {
+    if (options.dryRun) {
+        // The checks call Figma and Docker: a dry run runs nothing.
+        line('plan', 'first-run wizard: doctor\'s human checks, then the checklist');
+
+        return;
+    }
+    const refsDir = await loadProjectConfig(root)
+        .then(({ config }) => {
+            return config.refsDir;
+        })
+        .catch(() => {
+            // A broken config is doctor's and report's error to name; the checks still read the default refs dir.
+            return resolveConfig(undefined).refsDir;
+        });
+    let checks = await humanChecks(root, refsDir);
+    const act = (kind: string): Check | undefined => {
+        return checks.find((check) => {
+            return check.action?.kind === kind;
+        });
+    };
+    if (options.ask && (act('token') || act('pull'))) {
+        if (act('token')) {
+            await promptToken(root, refsDir);
+        }
+        const pull = act('pull')?.action;
+        if (pull?.kind === 'pull' && (await confirm(`\nPull the pinned browser image ${pull.image}?`))) {
+            line('run', `docker pull ${pull.image}`);
+            if (!(await pullImage(pull.image))) {
+                line('todo', `docker pull ${pull.image} failed; the first report pulls it`);
+            }
+        }
+        checks = await humanChecks(root, refsDir);
+    }
+    console.log('\nfigma-qa init: checklist');
+    for (const check of checks) {
+        printCheck(check);
+    }
+}
+
 async function run(root: string, options: Options): Promise<number> {
     if (options.dryRun) {
         console.log('figma-qa init --dry-run: the plan; nothing is written or run');
@@ -461,6 +579,7 @@ async function run(root: string, options: Options): Promise<number> {
     await ensureScript(root, options);
     await ensureRules(root, options);
     await ensureSkills(root, options, kitPending);
+    await wizard(root, options);
     await ensureWorkflow(root);
     if (manual.length > 0) {
         console.error(

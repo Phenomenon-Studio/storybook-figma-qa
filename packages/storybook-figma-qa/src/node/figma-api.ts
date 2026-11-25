@@ -1,8 +1,10 @@
 // The Figma REST edge. FIGMA_TOKEN is read here only, never shipped to the browser. FIGMA_API_URL points the kit at
 // another server (tests run against a stub serving recorded responses); image URLs come back absolute, so downloads
 // follow whatever server answered.
+import { readFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { parseEnv } from 'node:util';
 
 const DEFAULT_API = 'https://api.figma.com';
 
@@ -14,8 +16,22 @@ export class FigmaTokenError extends Error {
     override name = 'FigmaTokenError';
 }
 
-export function figmaToken(): string | null {
-    return process.env.FIGMA_TOKEN || null;
+/** Where `init` saves a developer's token: gitignored, read only for FIGMA_TOKEN. */
+export const ENV_FILE = '.env.local';
+
+/** The env wins (a CI secret); else the project's `.env.local`, read per call so a token init just wrote counts. */
+export function figmaToken(root = process.cwd()): string | null {
+    if (process.env.FIGMA_TOKEN) {
+        return process.env.FIGMA_TOKEN;
+    }
+    let source: string;
+    try {
+        source = readFileSync(path.join(root, ENV_FILE), 'utf8');
+    } catch {
+        return null;
+    }
+
+    return parseEnv(source).FIGMA_TOKEN || null;
 }
 
 function apiUrl(endpoint: string): string {

@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const RECORDINGS = fileURLToPath(new URL('./figma-api/', import.meta.url));
 
-export type Route = 'meta' | 'nodes' | 'images' | 'png';
+export type Route = 'me' | 'meta' | 'nodes' | 'images' | 'png';
 
 type Nodes = { version: string; lastModified: string; nodes: Record<string, unknown> };
 
@@ -18,6 +18,8 @@ export type FigmaStub = {
     version: string;
     /** The recorded `/nodes` response; edit it to change what Figma serves. */
     nodes: Nodes;
+    /** The only token Figma accepts; null accepts any. */
+    token: string | null;
     /** Answer every API route with this instead. */
     fail: { status: number; headers?: Record<string, string> } | null;
     requests: { route: Route; url: URL }[];
@@ -40,13 +42,15 @@ export async function startFigmaStub(fileKey: string): Promise<FigmaStub> {
             return;
         }
         const route: Route | null =
-            url.pathname === `/v1/files/${fileKey}/meta`
-                ? 'meta'
-                : url.pathname === `/v1/files/${fileKey}/nodes`
-                  ? 'nodes'
-                  : url.pathname === `/v1/images/${fileKey}`
-                    ? 'images'
-                    : null;
+            url.pathname === '/v1/me'
+                ? 'me'
+                : url.pathname === `/v1/files/${fileKey}/meta`
+                  ? 'meta'
+                  : url.pathname === `/v1/files/${fileKey}/nodes`
+                    ? 'nodes'
+                    : url.pathname === `/v1/images/${fileKey}`
+                      ? 'images'
+                      : null;
         if (!route) {
             res.writeHead(404).end('not recorded');
 
@@ -58,13 +62,16 @@ export async function startFigmaStub(fileKey: string): Promise<FigmaStub> {
 
             return;
         }
-        if (!req.headers['x-figma-token']) {
+        const token = req.headers['x-figma-token'];
+        if (!token || (stub.token !== null && token !== stub.token)) {
             res.writeHead(403).end(JSON.stringify({ status: 403, err: 'Invalid token' }));
 
             return;
         }
         const ids = (url.searchParams.get('ids') ?? '').split(',');
-        if (route === 'meta') {
+        if (route === 'me') {
+            json({ id: '1', handle: 'Fixture Dev', email: 'dev@example.com' });
+        } else if (route === 'meta') {
             json({ file: { name: 'Fixture UI kit', version: stub.version, last_touched_at: stub.nodes.lastModified } });
         } else if (route === 'nodes') {
             json({
@@ -94,6 +101,7 @@ export async function startFigmaStub(fileKey: string): Promise<FigmaStub> {
         url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
         version: '1',
         nodes: JSON.parse(readFileSync(`${dir}nodes.json`, 'utf8')) as Nodes,
+        token: null,
         fail: null,
         requests: [],
         routes: () => {

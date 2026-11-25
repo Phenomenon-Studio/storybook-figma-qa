@@ -1,25 +1,31 @@
 // Seam 1: `figma-qa init` run the way a consumer runs it. Set-up flows run in clean copies of both fixtures (the kit
 // wiring stripped, node_modules linked); refusals and plans run the kit's build in throwaway projects.
 import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { glob } from 'tinyglobby';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { VITEST_SNIPPET } from '../src/node/merge.ts';
 import { REGISTRY_LINE, RULES_BLOCK } from '../src/node/project-text.ts';
-import { type Fixture, fixtureDir, FIXTURES, KIT_BIN, runIn } from './cli.ts';
+import { answering, type Fixture, fixtureDir, FIXTURES, KIT_BIN, runIn } from './cli.ts';
+import { type FigmaStub, startFigmaStub } from './figma-stub.ts';
 
 const KIT = '@phenomenon-studio/storybook-figma-qa';
 const SKILLS_ADD = `npx -y skills@1.9.0 add ./node_modules/${KIT}/skills --copy -y -a claude-code codex`;
 const SKILLS_SOURCE = path.join(import.meta.dirname, '../skills');
 /** Every file the kit ships under `skills/`, sorted as `changedFiles` sorts. */
 const SKILL_FILES = (await glob('**/*', { cwd: SKILLS_SOURCE, dot: true })).sort();
+const FAKE_DOCKER = fileURLToPath(new URL('./fake-docker', import.meta.url));
+/** The prompts a wizard run in a terminal may show. */
+const PROMPTS = /FIGMA_TOKEN \(hidden|Pull the pinned browser image/;
 /** The skills CLI fetches from npm on first install. */
 const INSTALL_TIMEOUT = 300_000;
 
 async function snapshot(dir: string): Promise<Record<string, string>> {
-    const files = await glob('**/*', { cwd: dir, dot: true, ignore: ['node_modules', 'node_modules/**'] });
+    const files = await glob('**/*', { cwd: dir, dot: true, ignore: ['node_modules', 'node_modules/**', '.git/**'] });
     const entries = await Promise.all(
         files.map(async (file) => {
             const hash = createHash('sha1')
@@ -100,7 +106,11 @@ describe.each(FIXTURES)('figma-qa init on a clean copy of fixtures/%s', (fixture
      * to install the copy's `workspace:*` dependency.
      */
     async function figmaQa(args: string[]) {
-        return await runIn(dir, [path.join(dir, 'node_modules/.bin/figma-qa'), ...args]);
+        return await figmaQaWith(args, {});
+    }
+
+    async function figmaQaWith(args: string[], env: Record<string, string>) {
+        return await runIn(dir, [path.join(dir, 'node_modules/.bin/figma-qa'), ...args], env);
     }
 
     beforeAll(async () => {
@@ -207,7 +217,167 @@ describe.each(FIXTURES)('figma-qa init on a clean copy of fixtures/%s', (fixture
 
         expect(result.code, result.stderr).toBe(0);
         expect(result.stdout).toContain('ok    PR workflow: .github/workflows/design.yaml');
-        expect(result.stdout).not.toContain('todo  ');
+        expect(result.stdout).not.toContain('todo  PR workflow');
+    });
+
+    describe('first-run wizard', () => {
+        let stub: FigmaStub;
+        let home = '';
+        let env: Record<string, string> = {};
+
+        beforeAll(async () => {
+            stub = await startFigmaStub('FIXTUREKIT');
+            stub.token = 'figd_good';
+            home = await mkdtemp(path.join(tmpdir(), 'figma-qa-home-'));
+            await writeFile(path.join(home, '.npmrc'), '');
+            env = {
+                FIGMA_API_URL: stub.url,
+                PATH: `${FAKE_DOCKER}${path.delimiter}${process.env.PATH ?? ''}`,
+                FAKE_DOCKER_LOG: path.join(home, 'docker.jsonl'),
+                // The registry token's user config: empty until the complete-setup case writes the line.
+                NPM_CONFIG_USERCONFIG: path.join(home, '.npmrc'),
+                npm_config_userconfig: path.join(home, '.npmrc'),
+            };
+        });
+
+        afterAll(async () => {
+            await stub.close();
+            await rm(home, { recursive: true, force: true });
+        });
+
+        async function dockerCalls(): Promise<string[][]> {
+            const text = await readFile(env.FAKE_DOCKER_LOG ?? '', 'utf8').catch(() => {
+                return '';
+            });
+
+            return text
+                .split('\n')
+                .filter(Boolean)
+                .map((line) => {
+                    return JSON.parse(line) as string[];
+                })
+                .filter(Array.isArray);
+        }
+
+        const TOKEN_PROMPT = 'FIGMA_TOKEN (hidden; empty to skip): ';
+        const PULL_PROMPT = '[Y/n] ';
+
+        /** `init` in a terminal, answering its prompts. */
+        async function wizard(args: string[], answers: [string, string][], extra: Record<string, string> = {}) {
+            const command = [path.join(dir, 'node_modules/.bin/figma-qa'), 'init', ...args];
+            const { code, output } = await answering(dir, command, answers, { ...env, ...extra });
+            expect(code, output).toBe(0);
+
+            return output;
+        }
+
+        it('--yes prints the checklist in order and prompts, writes and pulls nothing', async () => {
+            const before = await snapshot(dir);
+
+            const output = await wizard(['--yes'], []);
+
+            expect(output).not.toMatch(PROMPTS);
+            const checklist = output.slice(output.indexOf('figma-qa init: checklist'));
+            const names = [...checklist.matchAll(/^(\w+) +([\w ]+):/gm)].map((match) => {
+                return `${match[1]} ${match[2]}`;
+            });
+            expect(names.slice(0, 6)).toEqual([
+                'todo registry',
+                'todo figma token',
+                'info file access',
+                'todo browser',
+                'ok variables',
+                'info figma mcp',
+            ]);
+            expect(checklist).toContain('fix: gh auth refresh -s read:packages');
+            expect(checklist).toContain('Dev or Full seat');
+            expect(checklist).toMatch(/fix: docker pull mcr\.microsoft\.com\/playwright:v[\d.]+-noble/);
+            expect(output).toContain('figma-qa init: done');
+            expect(await snapshot(dir)).toEqual(before);
+            expect(await dockerCalls()).not.toContainEqual(expect.arrayContaining(['pull']));
+        });
+
+        it('without a terminal: no prompt, exit 0', async () => {
+            const result = await figmaQaWith(['init'], env);
+
+            expect(result.code, result.stderr).toBe(0);
+            expect(result.stdout).toContain('todo  figma token: FIGMA_TOKEN not set');
+            expect(result.stdout).not.toMatch(PROMPTS);
+        });
+
+        it('refuses to write the token where git would commit it, printing the line', async () => {
+            const output = await wizard([], [[TOKEN_PROMPT, 'figd_good'], [PULL_PROMPT, 'n']]);
+
+            expect(output).toContain('ok    figma token: Fixture Dev');
+            expect(output).toContain('todo  .env.local: not gitignored, so the token is not written');
+            expect(output).toContain('FIGMA_TOKEN=figd_good');
+            await expect(readFile(path.join(dir, '.env.local'), 'utf8')).rejects.toThrow();
+            expect(await dockerCalls()).not.toContainEqual(expect.arrayContaining(['pull']));
+        });
+
+        it('validates the token, saves it to the ignored .env.local, checks file access and pulls on yes', async () => {
+            spawnSync('git', ['init', '-q'], { cwd: dir });
+            await writeFile(path.join(dir, '.gitignore'), 'node_modules\n.env.local\n');
+            stub.requests = [];
+
+            const output = await wizard([], [
+                [TOKEN_PROMPT, 'figd_bad'],
+                [TOKEN_PROMPT, 'figd_good'],
+                [PULL_PROMPT, 'y'],
+            ]);
+
+            expect(output).toContain('todo  figma token: Figma rejected it; paste another');
+            // Typed in raw mode: the terminal never shows a token.
+            expect(output).not.toContain('figd_');
+            expect(output).toContain('ok    figma token: Fixture Dev');
+            expect(output).toContain('write .env.local: FIGMA_TOKEN');
+            expect(await readFile(path.join(dir, '.env.local'), 'utf8')).toBe('FIGMA_TOKEN=figd_good\n');
+            expect(output).toMatch(/run   docker pull mcr\.microsoft\.com\/playwright:v[\d.]+-noble/);
+            expect(await dockerCalls()).toContainEqual(expect.arrayContaining(['pull']));
+            const checklist = output.slice(output.indexOf('figma-qa init: checklist'));
+            expect(checklist).toContain('ok    figma token: Fixture Dev (FIGMA_TOKEN from .env.local)');
+            expect(checklist).toContain('ok    file access: FIXTUREKIT "Fixture UI kit", version 1');
+            expect(checklist).toMatch(/ok    browser: Docker runs; pinned image .+ pulled/);
+            expect(stub.routes()).toEqual(expect.arrayContaining(['me', 'meta']));
+            expect(stub.routes()).not.toContain('nodes');
+        });
+
+        it('complete setup: all green, no prompts, no changes', async () => {
+            await writeFile(path.join(home, '.npmrc'), '//npm.pkg.github.com/:_authToken=ghp_test\n');
+            const before = await snapshot(dir);
+
+            const output = await wizard([], [], { FAKE_DOCKER_IMAGE: 'present' });
+
+            expect(output).not.toMatch(PROMPTS);
+            expect(output).not.toMatch(/^(todo|block|warn|write|run|edit) /m);
+            expect(output).toContain('ok    registry: ');
+            expect(output).toMatch(/ok    browser: Docker runs; pinned image .+ pulled/);
+            expect(await snapshot(dir)).toEqual(before);
+        });
+
+        it('doctor blocks on a token Figma rejects', async () => {
+            stub.token = 'figd_rotated';
+            try {
+                const result = await figmaQaWith(['doctor'], { ...env, FAKE_DOCKER_IMAGE: 'present' });
+
+                expect(result.code, result.stdout + result.stderr).toBe(2);
+                expect(result.stdout).toContain('block figma token: Figma rejected FIGMA_TOKEN from .env.local');
+                expect(result.stdout).toContain('info  file access: not checked: needs a working FIGMA_TOKEN');
+            } finally {
+                stub.token = 'figd_good';
+            }
+        });
+
+        it('a rejected token from the env is not prompted for: .env.local would never be read', async () => {
+            const before = await snapshot(dir);
+
+            const output = await wizard([], [], { FIGMA_TOKEN: 'figd_rotated', FAKE_DOCKER_IMAGE: 'present' });
+
+            expect(output).not.toMatch(PROMPTS);
+            expect(output).toContain('block figma token: Figma rejected FIGMA_TOKEN from env');
+            expect(output).toContain('fix: replace FIGMA_TOKEN where your environment sets it');
+            expect(await snapshot(dir)).toEqual(before);
+        });
     });
 });
 

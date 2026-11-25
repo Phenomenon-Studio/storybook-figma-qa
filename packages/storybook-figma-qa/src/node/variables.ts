@@ -20,7 +20,7 @@ export async function readCatalog(root: string, refsDir: string): Promise<FigmaV
 }
 
 /** The committed manifests in the refs dir: one per synced set. */
-async function manifests(root: string, refsDir: string): Promise<FigmaSetManifest[]> {
+export async function readManifests(root: string, refsDir: string): Promise<FigmaSetManifest[]> {
     const dir = path.join(root, refsDir);
     let entries: string[];
     try {
@@ -70,7 +70,7 @@ function specIds(spec: FigmaSpec): string[] {
 export async function unnamedVariables(root: string, refsDir: string): Promise<Map<string, string[]>> {
     const named = (await readCatalog(root, refsDir))?.variables ?? {};
     const byFile = new Map<string, Set<string>>();
-    for (const manifest of await manifests(root, refsDir)) {
+    for (const manifest of await readManifests(root, refsDir)) {
         for (const variant of manifest.variants) {
             for (const id of specIds(variant.spec)) {
                 if (!Object.hasOwn(named, id)) {
