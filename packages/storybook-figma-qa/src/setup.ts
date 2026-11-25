@@ -19,7 +19,7 @@ import { commands, page } from 'vitest/browser';
 import { pathFrom, setVariables, figmaSpecMismatches, textMasks } from './figma/spec.ts';
 import { projectConfig } from './figma/project.ts';
 import { STORIES_KEY } from './constants.ts';
-import { LOAD_SETS_HOOK, resolveStory, SKIP_HOOK } from './figma/story.ts';
+import { LOAD_SETS_HOOK, resolveStory, SKIP_HOOK, storyFailureCause } from './figma/story.ts';
 import { globToRegExp } from './figma/story-scan.ts';
 import { triageCell } from './figma/triage.ts';
 import { FIGMA_SCALE, FIGMA_TAG, figmaIssueText, refPng } from './figma/types.ts';
@@ -412,7 +412,7 @@ afterEach(async (context) => {
     const failed = context.task.result?.state === 'fail';
     try {
         if (failed) {
-            const cause = context.task.result?.errors?.[0]?.message ?? 'unknown error';
+            const cause = storyFailureCause(context.task.result?.errors?.[0]?.message ?? '');
             throw new Error(`Story failed before the Figma checks: ${cause}`);
         }
         const resolved = await resolveStory(story.parameters, commands.figmaEnsureSets);

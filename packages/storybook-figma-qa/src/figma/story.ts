@@ -120,3 +120,13 @@ export async function resolveStory(parameters: StoryParameters, loadSets: LoadSe
 
     return { blocks, variables: loaded.variables, warnings: loaded.warnings };
 }
+
+// ESC [ … m: the colours Vitest's assertion messages carry.
+// eslint-disable-next-line no-control-regex -- matching the escape character is the point.
+const ANSI_COLOUR = /\u001B\[[\d;]*m/g;
+const DEBUG_LINK = /^Click to debug the error directly in Storybook: .*$/m;
+
+/** What a story's own failure says, for its `ERROR` line: no colours, no debug link, no leading blank lines. */
+export function storyFailureCause(message: string): string {
+    return message.replaceAll(ANSI_COLOUR, '').replace(DEBUG_LINK, '').trim() || 'unknown error';
+}
