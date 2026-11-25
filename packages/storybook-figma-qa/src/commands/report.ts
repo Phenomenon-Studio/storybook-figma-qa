@@ -23,6 +23,7 @@ import { readJson } from '../node/json.ts';
 import { countIds, unnamedVariables, unnamedWarning } from '../node/variables.ts';
 import { parseFilters, scanStoryFile, selectStories } from '../figma/story-scan.ts';
 import { panelUrl, runningStorybook } from '../node/storybook-url.ts';
+import { print } from '../node/output.ts';
 
 type Options = {
     json: boolean;
@@ -262,26 +263,26 @@ function printHuman(summary: FigmaRunSummary): void {
         const { pass, fail, approved, missing } = story.cells;
         const counts = `${pass} pass, ${fail} fail, ${approved} approved, ${missing} missing`;
         const detail = story.error ? `error: ${story.error}` : counts;
-        console.log(`${story.verdict.toUpperCase().padEnd(5)} ${story.title} › ${story.name}: ${detail}`);
+        print(`${story.verdict.toUpperCase().padEnd(5)} ${story.title} › ${story.name}: ${detail}`);
         for (const cell of story.failing) {
             const triage = cell.triage ? ` [${cell.triage}]` : '';
-            console.log(`      ✗ ${cell.block} · ${cell.variant}${triage}`);
+            print(`      ✗ ${cell.block} · ${cell.variant}${triage}`);
             if (cell.approved) {
                 // Deliberate? Paste into that block's `approved` and say why; a fix needs no entry.
-                console.log(`        approved: ${cell.approved},`);
+                print(`        approved: ${cell.approved},`);
             } else {
-                console.log('        not measured: fix the capture, no approval can cover it');
+                print('        not measured: fix the capture, no approval can cover it');
             }
         }
     }
     for (const error of summary.errors) {
-        console.log(`ERROR ${error}`);
+        print(`ERROR ${error}`);
     }
     for (const warning of summary.warnings) {
-        console.log(`WARN  ${warning}`);
+        print(`WARN  ${warning}`);
     }
     const { pass, fail, approved, missing } = summary.cells;
-    console.log(
+    print(
         `\nfigma-qa report: ${pass} pass, ${fail} fail, ${approved} approved, ${missing} missing (exit ${summary.exitCode})`
     );
     const timings = Object.entries(summary.timings).map(([phase, ms]) => {
@@ -290,10 +291,10 @@ function printHuman(summary: FigmaRunSummary): void {
     if (summary.cellMs !== null) {
         timings.push(`per cell ${summary.cellMs} ms`);
     }
-    console.log(`Timings: ${timings.join(', ')}`);
-    console.log(`HTML report: ${REPORT_DIR}/index.html`);
+    print(`Timings: ${timings.join(', ')}`);
+    print(`HTML report: ${REPORT_DIR}/index.html`);
     if (summary.panelUrl) {
-        console.log(`Figma diff panel: ${summary.panelUrl}`);
+        print(`Figma diff panel: ${summary.panelUrl}`);
     }
 }
 
@@ -518,11 +519,11 @@ export async function report(argv: string[]): Promise<number> {
         await writeFile(path.join(root, CI_SUMMARY_FILE), ciSummary(summary, { changed: Boolean(options.changed) }));
     }
     if (options.json) {
-        console.log(JSON.stringify(summary, null, 4));
+        print(JSON.stringify(summary, null, 4));
     } else {
         printHuman(summary);
         if (options.ci) {
-            console.log(`Markdown summary: ${CI_SUMMARY_FILE}`);
+            print(`Markdown summary: ${CI_SUMMARY_FILE}`);
         }
     }
     if (options.open && interactive) {

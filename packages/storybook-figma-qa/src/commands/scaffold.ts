@@ -22,6 +22,7 @@ import {
 } from '../node/scaffold.ts';
 import { writeRawSet } from '../node/sync.ts';
 import { unifiedDiff } from '../node/text-diff.ts';
+import { print } from '../node/output.ts';
 
 const USAGE = 'usage: figma-qa scaffold <figma-url...> --story <path/Component.stories.tsx> [--dry-run]';
 
@@ -287,15 +288,15 @@ async function run(argv: string[]): Promise<number> {
     const added = newSets(fetched.sets, links, renderers, warnings);
     if (unsafe !== null) {
         console.error(`figma-qa scaffold: cannot edit ${relative}: ${unsafe}. Add each set by hand:`);
-        console.log(scaffoldSnippet(added));
+        print(scaffoldSnippet(added));
 
         return 2;
     }
     for (const warning of warnings) {
-        console.log(`warn  ${warning}`);
+        print(`warn  ${warning}`);
     }
     if (added.length === 0) {
-        console.log(`figma-qa scaffold: ${relative} already links every set; nothing to add`);
+        print(`figma-qa scaffold: ${relative} already links every set; nothing to add`);
 
         return 0;
     }
@@ -326,8 +327,8 @@ async function run(argv: string[]): Promise<number> {
     });
     if (args.dryRun) {
         process.stdout.write(unifiedDiff(existing ?? '', next, relative));
-        console.log(`figma-qa scaffold: dry run, ${relative} not written (${count(added)} to add)`);
-        console.log(lines.join('\n'));
+        print(`figma-qa scaffold: dry run, ${relative} not written (${count(added)} to add)`);
+        print(lines.join('\n'));
 
         return 0;
     }
@@ -338,9 +339,9 @@ async function run(argv: string[]): Promise<number> {
         const raw: RawSet = { ...(fetched.versions.get(set.fileKey) as Omit<RawSet, 'entry'>), entry: set.entry };
         await writeRawSet(root, set.fileKey, set.nodeId, raw);
     }
-    console.log(`figma-qa scaffold: wrote ${relative} (${count(added)} added)`);
-    console.log(lines.join('\n'));
-    console.log(
+    print(`figma-qa scaffold: wrote ${relative} (${count(added)} added)`);
+    print(lines.join('\n'));
+    print(
         `next: rename each entry to the code's variant and write its renderCell; until then \`figma-qa report ${files.component}\` reports its cells missing`
     );
 

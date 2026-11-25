@@ -20,6 +20,7 @@ import { MAIN_FILES } from '../node/figma-project.ts';
 import { type MergeResult, mergeMain, mergePreview, mergeVitest, VITEST_SNIPPET } from '../node/merge.ts';
 import { ask, confirm, interactive } from '../node/prompt.ts';
 import { callerWorkflow, REGISTRY_LINE, usesKitWorkflow, withRegistryLine, withRulesBlock } from '../node/project-text.ts';
+import { print } from '../node/output.ts';
 
 /** `ask`: the wizard may prompt (a terminal, no `--yes`, no `--dry-run`). */
 type Options = { dryRun: boolean; next: boolean; ask: boolean };
@@ -75,7 +76,7 @@ export async function init(args: string[]): Promise<number> {
 }
 
 function line(status: 'ok' | 'write' | 'run' | 'edit' | 'plan' | 'todo', text: string) {
-    console.log(`${status.padEnd(5)} ${text}`);
+    print(`${status.padEnd(5)} ${text}`);
 }
 
 async function readText(file: string): Promise<string | null> {
@@ -426,7 +427,7 @@ function ensureMigrated(root: string, options: Options, kitPending: boolean) {
         return text !== '' && !text.startsWith('figma-qa migrate:');
     });
     for (const text of lines) {
-        console.log(text);
+        print(text);
     }
     if (result.status !== 0) {
         throw new SetupError(`figma-qa migrate failed (${result.error?.message ?? (result.signal ? `killed by ${result.signal}` : `exit ${result.status}`)}): fix what it names, then re-run init.`);
@@ -564,7 +565,7 @@ async function ensureWorkflow(root: string) {
     }
     const workingDirectory = path.relative(repo, root).split(path.sep).join('/') || '.';
     line('todo', 'PR workflow: add .github/workflows/figma-qa.yml at the repo root, and a FIGMA_TOKEN repository secret:');
-    console.log(`\n${callerWorkflow({ kitVersion: await kitVersion(), workingDirectory })}`);
+    print(`\n${callerWorkflow({ kitVersion: await kitVersion(), workingDirectory })}`);
 }
 
 /** Whether git ignores `file`: the only condition under which init writes a secret into the project. */
@@ -589,7 +590,7 @@ function withToken(source: string | null, token: string): string {
  * empty, then saves it if `.env.local` is ignored.
  */
 async function promptToken(root: string, refsDir: string) {
-    console.log(`\nFigma token: create one (scope: File content, read-only) in Figma → Settings → Security.\nSeat: ${SEAT_NOTE}.`);
+    print(`\nFigma token: create one (scope: File content, read-only) in Figma → Settings → Security.\nSeat: ${SEAT_NOTE}.`);
     for (;;) {
         const token = await ask('FIGMA_TOKEN (hidden; empty to skip): ', { hidden: true });
         if (!token) {
@@ -619,7 +620,7 @@ async function promptToken(root: string, refsDir: string) {
         if (!gitIgnored(root, ENV_FILE)) {
             // A secret in a file git would commit: the human decides where it goes.
             line('todo', `${ENV_FILE}: not gitignored, so the token is not written. Ignore it, then add this line:`);
-            console.log(`\n    FIGMA_TOKEN=${token}\n`);
+            print(`\n    FIGMA_TOKEN=${token}\n`);
 
             return;
         }
@@ -669,7 +670,7 @@ async function wizard(root: string, options: Options) {
         }
         checks = await humanChecks(root, refsDir);
     }
-    console.log('\nfigma-qa init: checklist');
+    print('\nfigma-qa init: checklist');
     for (const check of checks) {
         printCheck(check);
     }
@@ -677,7 +678,7 @@ async function wizard(root: string, options: Options) {
 
 async function run(root: string, options: Options): Promise<number> {
     if (options.dryRun) {
-        console.log('figma-qa init --dry-run: the plan; nothing is written or run');
+        print('figma-qa init --dry-run: the plan; nothing is written or run');
     }
     if ((await ensureStorybook(root, options)) === 'planned') {
         // Nothing to read yet: the rest merges into what `storybook init` writes.
@@ -706,7 +707,7 @@ async function run(root: string, options: Options): Promise<number> {
 
         return 2;
     }
-    console.log(options.dryRun ? 'figma-qa init: dry run, nothing written' : 'figma-qa init: done');
+    print(options.dryRun ? 'figma-qa init: dry run, nothing written' : 'figma-qa init: done');
 
     return 0;
 }

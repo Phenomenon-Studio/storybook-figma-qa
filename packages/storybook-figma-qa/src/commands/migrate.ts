@@ -4,6 +4,7 @@
 import { FigmaQaConfigError } from '../figma/config.ts';
 import { loadProjectConfig } from '../node/config.ts';
 import { MigrateError, migrate as runSteps } from '../node/migrate.ts';
+import { print } from '../node/output.ts';
 
 const USAGE = 'Usage: figma-qa migrate [--dry-run]';
 
@@ -25,7 +26,7 @@ export async function migrate(args: string[]): Promise<number> {
             {
                 dryRun,
                 line: (status, text) => {
-                    console.log(`${status.padEnd(5)} ${text}`);
+                    print(`${status.padEnd(5)} ${text}`);
                 },
             }
         );
@@ -37,7 +38,7 @@ export async function migrate(args: string[]): Promise<number> {
         }
         throw error;
     }
-    console.log(dryRun ? 'figma-qa migrate: dry run, nothing written' : 'figma-qa migrate: done');
+    print(dryRun ? 'figma-qa migrate: dry run, nothing written' : 'figma-qa migrate: done');
 
     return 0;
 }

@@ -10,6 +10,7 @@ import { dockerRunning, imagePulled, PLAYWRIGHT_MISSING, pinnedImage } from './b
 import { ENV_FILE, FigmaTokenError, figmaGet, figmaToken } from './figma-api.ts';
 import { REGISTRY_LINE, withRegistryLine } from './project-text.ts';
 import { countIds, readManifests, unnamedVariables, VARIABLES_FILE } from './variables.ts';
+import { print } from './output.ts';
 
 /** ok; todo = missing, a human fixes it; block = a report exits 2; warn and info never change an exit code. */
 export type CheckStatus = 'ok' | 'todo' | 'block' | 'warn' | 'info';
@@ -44,9 +45,9 @@ const TOKEN_FIX = [
 ];
 
 export function printCheck(check: Check) {
-    console.log(`${check.status.padEnd(5)} ${check.name}: ${check.text}`);
+    print(`${check.status.padEnd(5)} ${check.name}: ${check.text}`);
     for (const fix of check.fix ?? []) {
-        console.log(`      fix: ${fix}`);
+        print(`      fix: ${fix}`);
     }
 }
 

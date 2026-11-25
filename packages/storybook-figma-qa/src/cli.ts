@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // `figma-qa` CLI. Commands load lazily so heavy dependencies only cost the command that needs them.
 // Exit codes: 0 ok, 1 design failure (report), 2 harness or setup error.
+import { print } from './node/output.ts';
 
 const COMMANDS = {
     report: 'Run the Figma report (default)',
@@ -41,7 +42,7 @@ function isCommand(name: string): name is Command {
 
 async function main(argv: string[]): Promise<number> {
     if (argv[0] === '--help' || argv[0] === '-h') {
-        console.log(USAGE);
+        print(USAGE);
 
         return 0;
     }

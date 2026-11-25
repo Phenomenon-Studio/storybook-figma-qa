@@ -12,6 +12,7 @@ import {
     unnamedVariables,
     VARIABLES_FILE,
 } from '../node/variables.ts';
+import { print } from '../node/output.ts';
 
 const USAGE = 'usage: figma-qa variables [<file> | -]';
 
@@ -34,7 +35,7 @@ async function printScripts(root: string, refsDir: string): Promise<number> {
             namingScript(ids),
         ].join('\n');
     });
-    console.log(blocks.join('\n\n'));
+    print(blocks.join('\n\n'));
 
     return 0;
 }
@@ -47,10 +48,10 @@ async function merge(root: string, refsDir: string, source: string): Promise<num
     const named = added.length === 0 ? 'nothing new to name' : `named ${added.length}: ${added.join(', ')}`;
     const rest =
         left.length === 0 ? 'every bound variable is named' : `${left.length} still unnamed: ${left.join(', ')}`;
-    console.log(`figma-qa variables: ${named}; ${rest}.`);
+    print(`figma-qa variables: ${named}; ${rest}.`);
     if (output.missing.length > 0) {
         // They stay unnamed: the script ran in a file that doesn't have them (deleted, or another file's).
-        console.log(`figma-qa variables: not found in the file the script ran in: ${output.missing.join(', ')}.`);
+        print(`figma-qa variables: not found in the file the script ran in: ${output.missing.join(', ')}.`);
     }
 
     return 0;
