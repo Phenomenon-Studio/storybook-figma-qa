@@ -200,13 +200,19 @@ export function nearestToken(color: Rgba, exact: number, prefer?: string | null)
     return best <= exact ? `= ${names}${more}` : `≈ ${names}${more} (Δ${Math.round(best)})`;
 }
 
-/** The kit tokens within `exact` per channel of a colour, in stylesheet order. */
+/**
+ * The kit tokens within `exact` per channel of a colour: aliases first, then primitives, each in stylesheet order. A
+ * story painting through an alias also uses the primitive behind it, and the alias is the name its code wrote.
+ */
 export function tokensAt(color: Rgba, exact: number): string[] {
     tokenCache ??= parseTokens();
 
     return tokenCache
         .filter((token) => {
             return distance(color, token.rgba) <= exact;
+        })
+        .toSorted((a, b) => {
+            return Number(b.alias) - Number(a.alias);
         })
         .map((token) => {
             return token.name;

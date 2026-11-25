@@ -421,7 +421,7 @@ jobs:
 
 ## Figma variables
 
-Figma colours bound to a variable are held to the CSS token `tokenName` maps its name to (config; default `--color-` + the kebab-cased path). A colour matching Figma by value but painted with another token fails as "right value, wrong token": the check overrides the token for the cell's element and its ancestors and sees whether the computed colour follows. Names come from `<refsDir>/variables.json`, since the REST variables endpoint is Enterprise-only.
+Figma colours bound to a variable are held to the CSS token `tokenName` maps its name to (config; default `--color-` + the kebab-cased path). A colour matching Figma by value but painted with another token fails as "right value, wrong token": the check overrides the token for the cell's element and its ancestors and sees whether the computed colour follows. The row's `actual.note` names the token the story paints with instead: the alias its code wrote (`= --color-primary` in the fixtures, an alias of `--color-blue-600`), not the primitive behind it. Names come from `<refsDir>/variables.json`, since the REST variables endpoint is Enterprise-only.
 
 An id with no name, or a name with no kit token, is matched by value: the row's note says `guess`, and the run carries one warning counting the unnamed ids. Neither changes the exit code.
 
