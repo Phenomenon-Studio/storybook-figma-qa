@@ -216,6 +216,11 @@ describe.each(FIXTURES)('figma-qa init on a clean copy of fixtures/%s', (fixture
             // A skill an older kit shipped and this one doesn't, a file this kit dropped, and a skill of the project's.
             lock.skills['figma-qa-old'] = lock.skills['figma-qa'];
             lock.skills['own-skill'] = { source: 'someone/skills', sourceType: 'github' };
+            // A lock entry is never an option to `skills remove`, and a symlink is never followed to delete.
+            lock.skills['--all'] = lock.skills['figma-qa'];
+            const outside = await mkdtemp(path.join(tmpdir(), 'figma-qa-outside-'));
+            await writeFile(path.join(outside, 'keep.md'), 'Not the kit\'s.\n');
+            await symlink(outside, path.join(dir, '.agents/skills/figma-qa/linked'), 'dir');
             await writeFile(lockFile, `${JSON.stringify(lock, null, 2)}\n`);
             for (const agent of ['.agents', '.claude']) {
                 await writeFiles(dir, {
@@ -229,6 +234,8 @@ describe.each(FIXTURES)('figma-qa init on a clean copy of fixtures/%s', (fixture
 
             expect(result.code, result.stderr).toBe(0);
             expect(result.stdout).toContain(`run   npx -y skills@1.9.0 remove figma-qa-old -y`);
+            expect(await readFile(path.join(outside, 'keep.md'), 'utf8')).toBe('Not the kit\'s.\n');
+            await rm(outside, { recursive: true, force: true });
             expect(result.stdout).toContain(`run   ${SKILLS_ADD}`);
             const files = await glob('{.agents,.claude}/skills/**/*', { cwd: dir, dot: true });
             expect(files.sort()).toEqual(
@@ -244,7 +251,7 @@ describe.each(FIXTURES)('figma-qa init on a clean copy of fixtures/%s', (fixture
                     .sort()
             );
             const after = JSON.parse(await readFile(lockFile, 'utf8')) as { skills: Record<string, unknown> };
-            expect(Object.keys(after.skills).sort()).toEqual(['figma-qa', 'figma-qa-scaffold', 'figma-qa-variables', 'own-skill']);
+            expect(Object.keys(after.skills).sort()).toEqual(['--all', 'figma-qa', 'figma-qa-scaffold', 'figma-qa-variables', 'own-skill']);
 
             for (const agent of ['.agents', '.claude']) {
                 await rm(path.join(dir, agent, 'skills/own-skill'), { recursive: true });

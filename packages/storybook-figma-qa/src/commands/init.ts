@@ -6,7 +6,7 @@
 // unpulled browser image (never under `--yes`, `--dry-run` or without a terminal), then the checklist and PR caller.
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { readFile, rm, writeFile } from 'node:fs/promises';
+import { lstat, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { glob } from 'tinyglobby';
 import { PACKAGE_NAME } from '../constants.ts';
@@ -433,6 +433,25 @@ function ensureMigrated(root: string, options: Options, kitPending: boolean) {
     }
 }
 
+/** A skill name as the skills CLI writes it. */
+const SKILL_NAME = /^[a-z0-9][a-z0-9._-]*$/i;
+
+/** Whether every segment of `relative` under `root` is a directory and none is a symlink. */
+async function realDirectory(root: string, relative: string): Promise<boolean> {
+    let dir = root;
+    for (const segment of relative.split('/')) {
+        dir = path.join(dir, segment);
+        const stats = await lstat(dir).catch(() => {
+            return null;
+        });
+        if (!stats?.isDirectory()) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 /** What `skills-lock.json` records per installed skill; init reads only `source`. */
 type SkillsLock = { skills?: Record<string, { source?: string }> };
 
@@ -465,27 +484,32 @@ async function ensureSkills(root: string, options: Options, kitPending: boolean)
     const lock = await readJson<SkillsLock>(path.join(root, 'skills-lock.json'));
     const dropped = Object.entries(lock?.skills ?? {})
         .filter(([name, entry]) => {
-            return entry.source === relative && !skills.has(name);
+            // The names come from a committed file and go on a command line: a skill name, never an option.
+            return entry.source === relative && !skills.has(name) && SKILL_NAME.test(name);
         })
         .map(([name]) => {
             return name;
         });
     const shipped = new Set(files);
-    const kitSkills = [...skills].map((skill) => {
-        return `${skill}/**/*`;
-    });
     const stale = (
         await Promise.all(
-            SKILL_DIRS.map(async (dir) => {
-                const copies = await glob(kitSkills, { cwd: path.join(root, dir), dot: true });
+            SKILL_DIRS.flatMap((dir) => {
+                return [...skills].map(async (skill) => {
+                    const copy = `${dir}/${skill}`;
+                    // Deletes only inside real directories of the project: a symlinked copy may point anywhere.
+                    if (!(await realDirectory(root, copy))) {
+                        return [];
+                    }
+                    const copies = await glob('**/*', { cwd: path.join(root, copy), dot: true, followSymbolicLinks: false });
 
-                return copies
-                    .filter((file) => {
-                        return !shipped.has(file);
-                    })
-                    .map((file) => {
-                        return `${dir}/${file}`;
-                    });
+                    return copies
+                        .filter((file) => {
+                            return !shipped.has(`${skill}/${file}`);
+                        })
+                        .map((file) => {
+                            return `${copy}/${file}`;
+                        });
+                });
             })
         )
     ).flat();
