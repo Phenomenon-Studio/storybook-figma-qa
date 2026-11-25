@@ -1,9 +1,9 @@
-// Seam 1: `figma-qa migrate` with the kit's real step list (empty: refs format 1), and `report` refusing refs in
-// another format. The runner with steps of its own is migrate.test.ts's subject.
+// Seam 1: `figma-qa migrate` with the kit's real step list (empty: refs format 1), and `report`, `variables` and
+// `doctor` refusing refs in another format. The runner with steps of its own is migrate.test.ts's subject.
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { fixtureDir, FIXTURES, report, runCli } from './cli.ts';
+import { doctor, fixtureDir, FIXTURES, report, runCli } from './cli.ts';
 
 const STAMP = 'figma-qa/__refs__/format.json';
 
@@ -24,6 +24,7 @@ describe.each(FIXTURES)('figma-qa migrate in fixtures/%s', (fixture) => {
 
         expect(result.code, result.stderr).toBe(0);
         expect(result.stdout).toBe('ok    figma-qa/__refs__: refs format 1, up to date\nfigma-qa migrate: done\n');
+        expect((await doctor(fixture)).stdout).toContain('ok    refs: figma-qa/__refs__ in refs format 1\n');
         expect(await readFile(stampFile, 'utf8')).toBe(committed);
     });
 
@@ -43,7 +44,7 @@ describe.each(FIXTURES)('figma-qa migrate in fixtures/%s', (fixture) => {
         expect(await readFile(stampFile, 'utf8')).toBe(committed);
     });
 
-    it('refuses refs from a newer kit, and report won\'t read them', async () => {
+    it('refuses refs from a newer kit, and report, variables and doctor won\'t read them', async () => {
         await writeFile(stampFile, '{\n    "format": 2\n}\n');
         const newer = 'figma-qa/__refs__ is refs format 2; this kit reads format 1: upgrade the kit.';
 
@@ -56,6 +57,16 @@ describe.each(FIXTURES)('figma-qa migrate in fixtures/%s', (fixture) => {
 
         expect(run.code).toBe(2);
         expect(run.summary.errors).toEqual([newer]);
+
+        const variables = await runCli(fixture, ['variables']);
+
+        expect(variables.code).toBe(2);
+        expect(variables.stderr).toBe(`figma-qa variables: ${newer}\n`);
+
+        const checks = await doctor(fixture);
+
+        expect(checks.code).toBe(2);
+        expect(checks.stdout).toContain(`block refs: ${newer}\n`);
     });
 
     it('refuses a stamp it can\'t read', async () => {

@@ -4,6 +4,7 @@
 import { readFile } from 'node:fs/promises';
 import { text } from 'node:stream/consumers';
 import { loadProjectConfig } from '../node/config.ts';
+import { refsFormatBlocked } from '../node/migrate.ts';
 import {
     mergeVariables,
     namingScript,
@@ -64,6 +65,13 @@ export async function variables(argv: string[]): Promise<number> {
     const root = process.cwd();
     try {
         const { refsDir } = (await loadProjectConfig(root)).config;
+        // It reads the manifests and writes into the refs dir: only refs in the kit's format.
+        const wrongFormat = await refsFormatBlocked({ root, refsDir });
+        if (wrongFormat) {
+            console.error(`figma-qa variables: ${wrongFormat}`);
+
+            return 2;
+        }
 
         return argv[0] === undefined ? await printScripts(root, refsDir) : await merge(root, refsDir, argv[0]);
     } catch (error) {

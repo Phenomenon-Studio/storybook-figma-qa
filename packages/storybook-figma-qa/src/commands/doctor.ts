@@ -5,6 +5,7 @@ import { CONFIG_FILE } from '../figma/config.ts';
 import { humanChecks, printCheck } from '../node/checks.ts';
 import { loadProjectConfig } from '../node/config.ts';
 import { addonBlocked, openFigmaProject } from '../node/figma-project.ts';
+import { refsFormat, refsFormatBlocked } from '../node/migrate.ts';
 
 export async function doctor(): Promise<number> {
     const root = process.cwd();
@@ -24,6 +25,19 @@ export async function doctor(): Promise<number> {
         console.log(`ok    icons: ${icons.length} match ${config.icons.glob}`);
     } else {
         console.log(`warn  icons: none match ${config.icons.glob}; Figma cells render without glyphs (set icons.glob)`);
+    }
+    // `report` refuses refs in another format than the kit's, so doctor names it beside the wiring.
+    const project = { root, refsDir: config.refsDir };
+    const wrongFormat = await refsFormatBlocked(project);
+    if (wrongFormat) {
+        console.log(`block refs: ${wrongFormat}`);
+    } else {
+        const format = await refsFormat(project);
+        console.log(
+            format === null
+                ? `ok    refs: none committed in ${config.refsDir} yet`
+                : `ok    refs: ${config.refsDir} in refs format ${format}`
+        );
     }
     // The same checks `report` blocks on: the kit wired into Storybook and Vitest.
     let blocked = await addonBlocked(root);
@@ -55,9 +69,10 @@ export async function doctor(): Promise<number> {
     }
     console.log('figma-qa doctor: done');
 
-    return checks.some((check) => {
-        return check.status === 'block';
-    })
+    return wrongFormat ||
+        checks.some((check) => {
+            return check.status === 'block';
+        })
         ? 2
         : 0;
 }

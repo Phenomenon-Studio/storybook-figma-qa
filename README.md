@@ -203,6 +203,7 @@ HTML report: figma-qa/.results/report/index.html
 ```text
 ok    config: no figma-qa.config.ts, defaults apply
 warn  icons: none match src/icons/*.svg; Figma cells render without glyphs (set icons.glob)
+ok    refs: figma-qa/__refs__ in refs format 1
 ok    setup: kit addon in .storybook/main, figma-qa Vitest project
 todo  registry: .npmrc lacks @phenomenon-studio:registry=https://npm.pkg.github.com
       fix: run `figma-qa init`: it writes only that line
@@ -217,13 +218,13 @@ info  figma mcp: agents name variables and read annotations through the Figma MC
 figma-qa doctor: done
 ```
 
-Each line is one check: the kit wiring (`config`, `icons`, `setup`), then the human items init's wizard covers, in its order. A `fix:` line under a check is the human fix.
+Each line is one check: the kit wiring (`config`, `icons`, `refs`, `setup`), then the human items init's wizard covers, in its order. A `fix:` line under a check is the human fix.
 
 - **`ok`**: the check passed.
 - **`todo`**: missing, and yours to add; the report still runs (offline without a token, the image pulled on first run). Exit stays 0.
 - **`warn`**: the report still runs, but this is worth fixing, or a check couldn't reach Figma (`not verified: …`, a 429 names its `X-Figma-Rate-Limit-Type`). Exit stays 0.
 - **`info`**: no action needed: no Figma story yet, no Docker (host Chromium), unnamed variables matched by value, the Figma MCP.
-- **`block`**: setup is broken, and `report` would exit 2 too: kit wiring (fix: `figma-qa init`), a token Figma rejects (`401`/`403`), or a file its owner can't open. Doctor exits 2.
+- **`block`**: setup is broken, and `report` would exit 2 too: refs in another format than the kit's (`block refs: figma-qa/__refs__ is refs format 2; this kit reads format 1: upgrade the kit.`, or `run \`figma-qa migrate\`` for older refs), kit wiring (fix: `figma-qa init`), a token Figma rejects (`401`/`403`), or a file its owner can't open. Doctor exits 2.
 
 `file access` prints one line per Figma file: `ok    file access: FIXTUREKIT "Fixture UI kit", version 1`. A config that fails to load prints `figma-qa doctor: <reason>` on stderr and exits 2.
 
@@ -386,7 +387,7 @@ figma-qa migrate: dry run, nothing written
 - **`ok`**: the refs are in this kit's format, or there are none (`figma-qa/__refs__: no committed refs, nothing to migrate`); nothing is written.
 - **`write`**: the stamp is written. A step run adds a line per step before it, `run   refs format 1 → 2: <what the step changes>`; the stamp moves after each step.
 - **`figma-qa migrate: done`**: the closing line. Init prints the step lines but not this one. Before the kit is installed, `init --dry-run` prints `plan  figma-qa migrate, after installing the kit`; an installed kit from before `migrate` existed prints `ok    migrate: the installed kit predates figma-qa migrate`.
-- **Exit 2**, on stderr: refs from a newer kit (`figma-qa migrate: figma-qa/__refs__ is refs format 2; this kit reads format 1: upgrade the kit.`), a stamp that isn't `{ "format": <positive integer> }`, a step that failed (`refs format 1 → 2 failed: <reason>`; the stamp stays at the last finished step, so a re-run resumes there), or a config the kit can't load. `report` names the same refs format error in its summary `errors`; init stops at `figma-qa init: figma-qa migrate failed (exit 2): fix what it names, then re-run init.`
+- **Exit 2**, on stderr: refs from a newer kit (`figma-qa migrate: figma-qa/__refs__ is refs format 2; this kit reads format 1: upgrade the kit.`), a stamp that isn't `{ "format": <positive integer> }`, a step that failed (`refs format 1 → 2 failed: <reason>`; the stamp stays at the last finished step, so a re-run resumes there), or a config the kit can't load. `report` names the same refs format error in its summary `errors`, `variables` on stderr (exit 2), and `doctor` as a `block refs:` line; init stops at `figma-qa init: figma-qa migrate failed (exit 2): fix what it names, then re-run init.`
 
 ## PR workflow
 
