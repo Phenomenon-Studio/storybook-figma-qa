@@ -413,7 +413,7 @@ jobs:
 ```
 
 - **`FIGMA_TOKEN`** is a per-repo secret, passed explicitly. Unset (or a fork PR, which gets no secrets) skips the check with a notice. A token Figma rejects turns the comment into "rotate the `FIGMA_TOKEN` repository secret".
-- **Install** is `pnpm install --frozen-lockfile` or `npm ci`, by the lockfile at the repo root: pnpm and npm only, any other lockfile fails the job. The kit comes from GitHub Packages with the run's `GITHUB_TOKEN` (`packages: read`): the kit package's "Manage Actions access" must list the consumer repo, and this repo's Actions access must allow organization repositories.
+- **Install** is `pnpm install --frozen-lockfile` or `npm ci`, by the lockfile at the repo root: pnpm and npm only, any other lockfile fails the job. The kit comes from GitHub Packages with the run's `GITHUB_TOKEN` (`packages: read`). Repo and package are public, so any repo, in the org or not, can call the workflow and read the package: no Actions-access lists to edit.
 - **Skips** (no token, or `paths` unchanged) turn an existing sticky comment into `## Figma QA: skipped` with the reason, so an older result never reads as current. With no comment yet, a skip posts nothing.
 - **Node** comes from the project's `.nvmrc` / `.node-version`, else the repo root's, else current LTS.
 - **Browser**: the CLI starts the pinned Playwright image with Docker, tagged from the project's `playwright`, as a local run does, and only once collect found a story to run: a PR that reaches no Figma story pulls nothing. A `services:` container can't run it: it takes neither a command (`run-server`) nor a tag computed from the installed version.

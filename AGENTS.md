@@ -4,7 +4,7 @@ Layout and commands: [`README.md`](README.md). CI is the definition of done: [`.
 
 ## Tickets
 
-Spec and tickets live outside this repo, in the consumer project: `../amber/storybook-mcp/.scratch/figma-qa-kit/` (`spec.md`, `issues/NN-*.md`). Start sessions here with `claude --add-dir ../amber/storybook-mcp`.
+Spec and tickets live outside this repo, in the consumer project's `.scratch/figma-qa-kit/` (`spec.md`, `issues/NN-*.md`); ask the maintainer for the path. Start sessions here with `claude --add-dir <consumer project>`.
 
 - Code and its commits go here. Ticket bookkeeping goes there as a separate commit: `**Status:** resolved`, ticked criteria, and an `## Answer` section (date, kit commit SHAs, CI run, decisions a later ticket needs).
 - When a ticket settles a fact the spec states differently, update the spec line in the same bookkeeping commit.
