@@ -27,12 +27,17 @@ function Block({ resolved, renderCell }: { resolved: ResolvedBlock; renderCell: 
         <section data-figma-block={name}>
             <h2 style={labelStyle}>{manifest.source.name}</h2>
             {sections.map((section) => {
+                // No axis left for the rows: no row labels, and no empty header cells (axe `empty-table-header`).
+                const hasRowLabels = section.rows.some((row) => {
+                    return row.label !== '';
+                });
+
                 return (
                     <table key={section.title ?? 'all'} style={{ borderCollapse: 'collapse' }}>
                         {section.title && <caption style={labelStyle}>{section.title}</caption>}
                         <thead>
                             <tr>
-                                <th />
+                                {hasRowLabels && <td />}
                                 {section.columns.map((column) => {
                                     return (
                                         <th key={column} scope="col" style={labelStyle}>
@@ -46,9 +51,11 @@ function Block({ resolved, renderCell }: { resolved: ResolvedBlock; renderCell: 
                             {section.rows.map((row) => {
                                 return (
                                     <tr key={row.label}>
-                                        <th scope="row" style={labelStyle}>
-                                            {row.label}
-                                        </th>
+                                        {hasRowLabels && (
+                                            <th scope="row" style={labelStyle}>
+                                                {row.label}
+                                            </th>
+                                        )}
                                         {row.cells.map((variant, column) => {
                                             if (!variant) {
                                                 return (
