@@ -51,7 +51,7 @@ if (args[0] !== 'compose') {
 const file = JSON.parse(readFileSync(0, 'utf8'));
 log(file);
 if (mode === 'fail') {
-    console.error('Error response from daemon: Bind for 127.0.0.1:3100 failed: port is already allocated');
+    console.error('Error response from daemon: Bind for 127.0.0.1:29317 failed: port is already allocated');
     process.exit(1);
 }
 const port = Number(file.services.browser.ports[0].split(':')[1]);

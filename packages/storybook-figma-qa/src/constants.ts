@@ -19,7 +19,11 @@ export const DEV_ROUTE = '/__figma-qa';
 export const BROWSER_WS_ENV = 'FIGMA_QA_BROWSER_WS';
 /** Host port of the pinned browser's Playwright server; tests move it off the default. */
 export const BROWSER_PORT_ENV = 'FIGMA_QA_BROWSER_PORT';
-export const BROWSER_PORT = 3100;
+/**
+ * Not a popular dev port (3000, 3100, 5173, 6006, 8080…) that another project's server or browser may hold, and below
+ * the ephemeral ranges (Linux 32768+, macOS 49152+) the OS hands out to outgoing connections.
+ */
+export const BROWSER_PORT = 29317;
 /** Provided to the Figma project's browser by `figma-qa report` for story-id filters: an `IdSelection`. */
 export const STORIES_KEY = 'figmaQaStories';
 /** The package `.storybook/main` lists in `addons` to load the kit's preset, manager and preview. */
