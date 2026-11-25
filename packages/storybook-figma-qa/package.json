@@ -1,6 +1,6 @@
 {
     "name": "@phenomenon-studio/storybook-figma-qa",
-    "version": "0.0.0",
+    "version": "0.1.0",
     "description": "Figma QA kit: checks Storybook stories against the Figma UI kit (Storybook addon, Vitest plugin, figma-qa CLI, agent skills).",
     "type": "module",
     "license": "UNLICENSED",
