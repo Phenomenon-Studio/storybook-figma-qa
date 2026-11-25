@@ -1,8 +1,8 @@
 name: Figma QA
 
 # Reusable PR check for consumer repos: `figma-qa report --ci --changed <base>` on the stories the PR reaches, one
-# sticky comment with the summary, and the HTML report as an artifact for designers. Callers pin `@v1`; the caller
-# job is in the kit README ("PR workflow").
+# sticky comment with the summary, and the HTML report as an artifact for designers. Callers pin the kit's major (`@v0`);
+# the caller job is in docs/ci.md.
 on:
     workflow_call:
         inputs:

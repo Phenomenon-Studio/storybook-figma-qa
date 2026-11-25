@@ -35,9 +35,8 @@ jobs:
 
 ## The PR comment
 
-The job runs `figma-qa report --ci`, which writes `figma-qa/.results/summary.md`; the workflow posts it as one sticky comment (updated on each push) with links to the HTML report artifact and the job log. A failing run in `fixtures/sb11`, as GitHub renders it:
+The job runs `figma-qa report --ci`, which writes `figma-qa/.results/summary.md`; the workflow posts it as one sticky comment (updated on each push) with links to the HTML report artifact and the job log. A failing run in `fixtures/sb11`, rendered (headings shown smaller here):
 
-> <!-- figma-qa -->
 > #### Figma QA: fail
 >
 > 0 pass · 8 fail · 0 approved · 4 missing
@@ -57,8 +56,6 @@ The job runs `figma-qa report --ci`, which writes `figma-qa/.results/summary.md`
 > #### Warnings
 >
 > - Host Chromium (--host-browser): pixels are not comparable to CI.
-> ```
->
 
 The file itself:
 

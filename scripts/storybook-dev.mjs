@@ -39,8 +39,8 @@ export async function serveDev(fixture) {
     };
 }
 
-/** Opens a story with the "Figma diff" panel selected. */
-export async function openPanel(page, url, storyId) {
-    await page.goto(`${url}/?path=/story/${storyId}`);
+/** Opens a story with the "Figma diff" panel selected. `query` adds Storybook URL params, e.g. `&nav=false`. */
+export async function openPanel(page, url, storyId, query = '') {
+    await page.goto(`${url}/?path=/story/${storyId}${query}`);
     await page.getByRole('tab', { name: 'Figma diff' }).click({ timeout: 60_000 });
 }

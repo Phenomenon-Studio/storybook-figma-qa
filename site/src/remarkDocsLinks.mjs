@@ -1,5 +1,5 @@
 // Rewrites relative links between docs/*.md files (which work on GitHub)
-// into site routes: ./skills/tanstack.md#x -> /<base>/skills/tanstack/#x
+// into site routes: ./commands/report.md#x -> /<base>/commands/report/#x
 import { dirname, posix, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 

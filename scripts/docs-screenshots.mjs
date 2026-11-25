@@ -9,7 +9,7 @@ import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
-import { serveDev } from './storybook-dev.mjs';
+import { openPanel, serveDev } from './storybook-dev.mjs';
 
 const fixture = resolve('fixtures/sb11');
 const out = resolve('docs/assets');
@@ -40,14 +40,14 @@ const browser = await chromium.launch();
 let server;
 try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, colorScheme: 'light' });
-    const shot = async (locator, name) => {
-        await locator.screenshot({ path: join(out, name), animations: 'disabled' });
+    // `target` is the page or a locator: both take the same screenshot options.
+    const shot = async (target, name) => {
+        await target.screenshot({ path: join(out, name), animations: 'disabled' });
         console.log(`wrote docs/assets/${name}`);
     };
 
     await page.goto(pathToFileURL(join(fixture, 'figma-qa/.results/report/index.html')).href);
-    await page.screenshot({ path: join(out, 'report-overview.png'), animations: 'disabled' });
-    console.log('wrote docs/assets/report-overview.png');
+    await shot(page, 'report-overview.png');
     await shot(page.locator('.fqa-notice[data-kind="warning"]').first(), 'host-browser-banner.png');
     await shot(
         page.locator(`[data-story-id="${FAILING}"] .fqa-cell[data-status="fail"]`).first(),
@@ -61,8 +61,7 @@ try {
         [FAILING, 'panel-fail.png'],
     ]) {
         // No sidebar, panel dragged up to 3/5 of the page: the matrix on top, the panel wide enough for its table.
-        await page.goto(`${server.url}/?path=/story/${id}&nav=false`);
-        await page.getByRole('tab', { name: 'Figma diff' }).click({ timeout: 60_000 });
+        await openPanel(page, server.url, id, '&nav=false');
         // Rendered from the run's results, like the smoke check waits for.
         await page.locator(`[data-story-id="${id}"][data-verdict]`).waitFor({ timeout: 30_000 });
         await page.frameLocator('#storybook-preview-iframe').locator('[data-figma-variant]').first().waitFor();
@@ -71,8 +70,7 @@ try {
         await page.mouse.down();
         await page.mouse.move(720, 400, { steps: 10 });
         await page.mouse.up();
-        await page.screenshot({ path: join(out, name), animations: 'disabled' });
-        console.log(`wrote docs/assets/${name}`);
+        await shot(page, name);
     }
 } finally {
     await browser.close();

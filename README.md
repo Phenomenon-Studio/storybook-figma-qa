@@ -53,7 +53,7 @@ pnpm smoke:panel --dev fixtures/sb11                    # report, then `storyboo
 node scripts/docs-screenshots.mjs          # after a change to src/ui/: rewrites docs/assets/*.png from fixtures/sb11
 ```
 
-Command pages carry a response example from a real `fixtures/sb11` run, shortened, never invented; a change to what a command prints updates its `docs/commands/<command>.md` in the same commit. Screenshots come from the fixtures only, never from a client project.
+What a command page's response example must be, and when screenshots are retaken: AGENTS.md, "Package contract".
 
 ## Releasing
 

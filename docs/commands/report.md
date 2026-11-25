@@ -50,8 +50,6 @@ flowchart TD
   verdict -- "harness or setup error" --> harness["exit 2"]
 ```
 
-The one local command, aliased in a project's `package.json` as `"figma-report": "figma-qa report"` (`pnpm figma-report`). It never prompts and exits 0 (pass, approved or no code equivalent), 1 (a cell differs from Figma) or 2 (harness or setup error).
-
 1. **doctor**: the config loads; the committed refs are in the kit's refs format (else exit 2 naming `figma-qa migrate`, or a kit upgrade for refs from a newer kit); `.storybook/main` adds the kit and Vitest has the `figma-qa` project, else exit 2 pointing at `figma-qa init`.
 2. **collect**: story files from Storybook's `stories` globs are scanned as text; only files with a `figma` tag literal, or `tags` the scan can't read, are handed to Vitest.
 3. **browser**, only once collect found a story to run (a `--changed` PR that reaches none pulls nothing): with Docker running, `docker compose up --wait` starts `mcr.microsoft.com/playwright:v<project's playwright>-noble` (compose project `figma-qa`, Playwright server on `127.0.0.1:29317`, or `$FIGMA_QA_BROWSER_PORT`, behind a per-user secret path kept in `~/.cache/figma-qa/browser-token`, left running for the next run). Without Docker, or with `--host-browser`, the host's Chromium runs and the summary and report warn that pixels are not comparable to CI. Docker running but the image failing to start is exit 2.
@@ -116,7 +114,7 @@ HTML report: figma-qa/.results/report/index.html
 - **`WARN`** lines never change the exit code. They cover host Chromium, Figma changed since the last sync, unnamed variables and `No Figma stories affected.`
 - **The totals line** ends with the exit code. `Timings` show where the time went; `per cell` is the checks' time per captured cell (missing cells aren't captured), meant to stay ≤ 150 ms warm, reported and never gated. `HTML report` is the path to open. `Figma diff panel: <url>` follows when `storybook dev` is running.
 
-`--json` prints only the summary on stdout; Vitest's output goes to stderr. The same object is written to `figma-qa/.results/run.json`:
+`--json` prints only the summary on stdout (this example is a separate, smaller run); Vitest's output goes to stderr. The same object is written to `figma-qa/.results/run.json`:
 
 ```json
 {

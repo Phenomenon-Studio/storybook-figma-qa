@@ -21,6 +21,12 @@ The script is read-only. Names already committed never change, and a repeat merg
 
 ## Response example
 
+In `fixtures/sb11`, whose `variables.json` already names every bound variable (stdout empty, exit 0):
+
+```text
+figma-qa variables: every bound variable is named in figma-qa/__refs__/variables.json.
+```
+
 With no argument, stdout is only runnable script: one block per Figma file, headed by `// Figma file <key>: N unnamed. Run with use_figma …`. Paste a whole block into `use_figma`. When nothing is unnamed, stdout is empty and stderr says `figma-qa variables: every bound variable is named in figma-qa/__refs__/variables.json.`
 
 With `<file>` or `-`, it merges the script's JSON output and prints what changed: `figma-qa variables: named 2: VariableID:1:2, VariableID:1:3; every bound variable is named.` A second line lists ids `not found in the file the script ran in`. They stay unnamed: the script ran in another file, or the variable was deleted.

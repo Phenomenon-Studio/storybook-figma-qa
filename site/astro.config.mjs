@@ -4,7 +4,6 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import mermaid from 'astro-mermaid';
 import { remarkDocsLinks } from './src/remarkDocsLinks.mjs';
-import { claudeGrammar } from './src/claudeGrammar.mjs';
 
 const base = '/storybook-figma-qa';
 const repo = 'https://github.com/Phenomenon-Studio/storybook-figma-qa';
@@ -39,7 +38,6 @@ export default defineConfig({
         // first dark, then light: Starlight swaps them with the site theme toggle
         themes: ['github-dark', 'github-light'],
         styleOverrides: { borderRadius: '8px' },
-        shiki: { langs: [claudeGrammar] },
       },
       head: [
         { tag: 'link', attrs: { rel: 'preconnect', href: 'https://fonts.googleapis.com' } },
