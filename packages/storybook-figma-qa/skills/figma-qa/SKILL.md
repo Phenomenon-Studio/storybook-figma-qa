@@ -1,6 +1,6 @@
 ---
 name: figma-qa
-description: Check Storybook stories against the Figma UI kit with `figma-qa report`, triage failing cells, and fix the code or propose an approval. Use when a component with a Figma story changed, when asked whether code matches Figma, or when Figma cells fail.
+description: Check Storybook stories against the Figma UI kit with `figma-qa report`, triage failing cells, fact-check the designer's annotations, and fix the code or propose an approval. Use when a component with a Figma story changed, when asked whether code matches Figma, when Figma cells fail, or when the run lists designer notes.
 ---
 
 # Figma QA
@@ -24,17 +24,25 @@ For every entry of every story's `failing[]`, open its `stories[].results` file,
 
 **Done when** every failing cell has a class, the owning file and line, and the evidence (row or diff region) behind it.
 
-## 3. Act
+## 3. Designer notes
+
+For every story whose `annotations[]` is not empty, check each note with [ANNOTATIONS.md](ANNOTATIONS.md). Resolve its category, split it into claims, and check each claim against the code, the decision records, the glossary, the cells and the other notes. Give each note a verdict: `applied`, `conflict`, `open` or `out of scope`. The verdicts are yours: the CLI prints notes and never judges them.
+
+**Done when** every note has a verdict with evidence, and every `conflict` and `open` note is put to the user before any code changes for it.
+
+## 4. Act
 
 - **harness** and **mapping**: fix the story yourself.
 - **token**, **value**, **structure**, **behaviour**: fix the component or token when the user asked for fixes; otherwise report the cell with its owner.
 - **deliberate**: paste the cell's `failing[].approved` entry into that block's `approved`, replace the `TODO` reason with the WCAG criterion or decision it rests on, and ask the user to confirm it. Tolerances and `maxDiffRatio` stay as they are.
 
+- **Notes**: change code for a `conflict` or `open` note only after the user rules on it.
+
 Re-run step 1 after each change.
 
 **Done when** every failing cell is fixed, reported with its owner, or approved pending the user's confirmation.
 
-## 4. Report
+## 5. Report
 
 One section per story, ranked structure → behaviour → value → token → mapping → harness:
 
@@ -43,5 +51,7 @@ One section per story, ranked structure → behaviour → value → token → ma
 | Cell | Class | Figma | Story | Owner (file:line) | Action |
 Approvals to confirm: <cells> — <reason>
 ```
+
+Then one table for the designer notes: `| Block | Node (path) | Category | Verdict | Evidence or reason |`.
 
 End with the HTML report, `figma-qa/.results/report/index.html`, and any doctor lines still open.

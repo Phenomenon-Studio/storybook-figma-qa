@@ -125,6 +125,20 @@ export type FigmaVariant = {
     spec: FigmaSpec;
 };
 
+/**
+ * A designer's Dev Mode annotation pinned to a node of a set. REST `/nodes` sends plain text only: no category, no
+ * markdown, no pinned properties. A note, never part of a verdict.
+ */
+export type FigmaAnnotation = {
+    /** The annotated node, instance sublayers included (`I20:2;30:2;31:1`). */
+    nodeId: string;
+    /** Layer names from the set down to the annotated node; empty for the set itself. */
+    path: string[];
+    /** Id of the variant the node sits in; null for the set itself. */
+    variant: string | null;
+    label: string;
+};
+
 /** One component set, as cached in `<refsDir>/<slug>/manifest.json` next to one PNG per variant. */
 export type FigmaSetManifest = {
     /**
@@ -145,6 +159,11 @@ export type FigmaSetManifest = {
     /** BOOLEAN properties. Figma renders only their defaults, so they can't be matrix axes. */
     booleans: { name: string; default: boolean }[];
     variants: FigmaVariant[];
+    /**
+     * Designer notes in the set's subtree, in layer order. Absent in manifests synced before the kit read them: not
+     * synced, which differs from none; `figma-qa report --refresh` adds them.
+     */
+    annotations?: FigmaAnnotation[];
 };
 
 /**
@@ -258,6 +277,8 @@ export type FigmaCellResult = {
      * (orange Figma only, blue story only, yellow other colour, hatched text, the rest dimmed).
      */
     files: { figma: string; actual: string | null; diff: string | null };
+    /** Designer notes inside this variant's subtree. */
+    annotations: FigmaAnnotation[];
 };
 
 /** The diff map's colours (sRGB), shared by the image Node paints and the legend the UI draws. */
@@ -271,6 +292,8 @@ export type FigmaBlockResult = {
     layout: FigmaMatrixLayout;
     axes: FigmaSetManifest['axes'];
     cells: FigmaCellResult[];
+    /** Designer notes on the set itself; null when the manifest predates synced notes. */
+    annotations: FigmaAnnotation[] | null;
 };
 
 /** One Figma story's outcome: `${RESULTS_DIR}/results/<storyId>.json`. */
@@ -345,7 +368,12 @@ export type FigmaStorySummary = {
     /** Per-story results JSON, relative to the project root. */
     results: string | null;
     failing: FailingCell[];
+    /** Every designer note of the story's blocks, on its block and, under a variant, its cell. */
+    annotations: StoryAnnotation[];
 };
+
+/** A designer note as `report --json` lists it: `block` is the design entry name, `variant` the cell's variant name. */
+export type StoryAnnotation = Omit<FigmaAnnotation, 'variant'> & { block: string; variant: string | null };
 
 /** One run's outcome: printed by `report --json`, written to `RUN_FILE`. The panel and the HTML report render it. */
 export type FigmaRunSummary = {

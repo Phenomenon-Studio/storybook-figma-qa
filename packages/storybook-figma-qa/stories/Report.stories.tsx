@@ -4,7 +4,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, within } from 'storybook/test';
 import { PanelView } from '../src/ui/panel-view.tsx';
 import { ReportBody } from '../src/ui/report-page.tsx';
-import { ALL, FAIL, FIGMA_CHANGED, fileUrl, PASS, RENDER_FAILED, runOf, TRIAGED } from './results.ts';
+import { ALL, FAIL, FIGMA_CHANGED, fileUrl, NOTED, PASS, RENDER_FAILED, runOf, TRIAGED } from './results.ts';
 
 const meta = {
     title: 'Report',
@@ -89,6 +89,17 @@ export const Triaged: Story = {
         await expect(canvas.getByText('Harness: not a design diff')).toBeVisible();
         await expect(canvas.getByText('Token: another kit token')).toBeVisible();
         await expect(canvas.getByText('Value: spec number off')).toBeVisible();
+    },
+};
+
+/** The report shows designer notes as the panel does: under their block and cell, plain text. */
+export const Notes: Story = {
+    args: { run: runOf([NOTED]), results: [NOTED] },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        await expect(canvas.getByText(/Every cell matches Figma/)).toBeVisible();
+        await expect(canvas.getByText('Tones come from the Tone collection only.')).toBeVisible();
+        await expect(canvas.getByText(/Hover darkens the fill/)).toBeInTheDocument();
     },
 };
 

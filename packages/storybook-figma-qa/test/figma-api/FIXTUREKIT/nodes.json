@@ -367,11 +367,21 @@
                                                 }
                                             }
                                         ],
-                                        "cornerRadius": 8
+                                        "cornerRadius": 8,
+                                        "annotations": [
+                                            {
+                                                "label": "Corner radius follows the icon size."
+                                            }
+                                        ]
                                     }
                                 ]
                             }
                         ]
+                    }
+                ],
+                "annotations": [
+                    {
+                        "label": "Icons come from the Icons library.\nNever recolour them in code."
                     }
                 ]
             },

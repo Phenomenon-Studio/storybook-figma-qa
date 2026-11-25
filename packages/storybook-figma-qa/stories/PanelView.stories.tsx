@@ -2,7 +2,18 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, within } from 'storybook/test';
 import { PanelView } from '../src/ui/panel-view.tsx';
-import { APPROVED, FAIL, FIGMA_CHANGED, fileUrl, HARNESS_ERROR, PASS, RENDER_FAILED, runOf, TRIAGED } from './results.ts';
+import {
+    APPROVED,
+    FAIL,
+    FIGMA_CHANGED,
+    fileUrl,
+    HARNESS_ERROR,
+    NOTED,
+    PASS,
+    RENDER_FAILED,
+    runOf,
+    TRIAGED,
+} from './results.ts';
 
 const meta = {
     title: 'Panel',
@@ -89,6 +100,24 @@ export const FigmaChanged: Story = {
         // A warning, never a verdict.
         await expect(canvas.getByText('Matches Figma')).toBeVisible();
         await expect(canvas.getByRole('note')).toHaveTextContent(/Figma changed since .* was synced/);
+    },
+};
+
+/** Designer notes sit under their block and cell as plain text, line breaks kept; the verdict ignores them. */
+export const Notes: Story = {
+    args: { storyId: NOTED.storyId, result: NOTED, run: runOf([NOTED]) },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        await expect(canvas.getByText('Matches Figma')).toBeVisible();
+        await expect(canvas.getByText('Tones come from the Tone collection only.')).toBeVisible();
+        // A passing cell stays closed: its tag says a note waits inside.
+        await expect(canvas.getByText('1 note')).toBeVisible();
+        await userEvent.click(canvas.getByText('Size=Small, Tone=Brand'));
+        const note = canvas.getByText(/Hover darkens the fill/);
+        await expect(note).toBeVisible();
+        await expect(note.textContent).toBe('Hover darkens the fill by one step.\nPressed: two steps.');
+        await expect(getComputedStyle(note).whiteSpace).toBe('pre-line');
+        await expect(canvas.getByText('Size=Small, Tone=Brand › Label')).toBeVisible();
     },
 };
 

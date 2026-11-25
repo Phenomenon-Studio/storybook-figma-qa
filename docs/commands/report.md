@@ -109,9 +109,17 @@ HTML report: figma-qa/.results/report/index.html
   - At most 5 rows per cell, then `… K more rows in <results file>` (the story's results JSON holds them all).
   - `pixels:` is the differing share against the story's max and the diff map's path, or `not measured: <reason>` when the capture couldn't be compared. The HTML report shows the same cell with its images.
   - Red `-` and green `+` only on a terminal with `NO_COLOR` unset; piped or captured output is plain text.
+- **`<block> · notes: <N>`** under a story line counts the designer's Dev Mode annotations in that block: on the set and on its variants' layers. It prints the count, not the text. The notes are in the HTML report, the panel and `--json`. They never change a verdict or the exit code. A run of `Glyph.figma`, whose set carries two notes:
+
+  ```text
+  FAIL  src/Glyph.figma.stories.tsx › Matrix: 0 pass, 2 fail, 0 approved, 0 missing
+        glyph · notes: 2
+        ✗ glyph · Icon=Square [value]
+  ```
+
 - **`approved: { … },`** is only for a deviation a human confirms is deliberate. Paste it into that block's `approved` and replace the `TODO` reason. A fix needs no entry. Harness cells print `not measured` instead, because no approval can cover them.
 - **`ERROR <message>`** without a story is a run-level harness or setup error. It is exit 2, and the message names the fix (often `figma-qa init` or `--host-browser`).
-- **`WARN`** lines never change the exit code. They cover host Chromium, Figma changed since the last sync, unnamed variables and `No Figma stories affected.`
+- **`WARN`** lines never change the exit code. They cover host Chromium, Figma changed since the last sync, unnamed variables, designer notes not synced yet (refs synced before the kit read notes: `figma-qa report --refresh` adds them) and `No Figma stories affected.`
 - **The totals line** ends with the exit code. `Timings` show where the time went; `per cell` is the checks' time per captured cell (missing cells aren't captured), meant to stay ≤ 150 ms warm, reported and never gated. `HTML report` is the path to open. `Figma diff panel: <url>` follows when `storybook dev` is running.
 
 `--json` prints only the summary on stdout (this example is a separate, smaller run); Vitest's output goes to stderr. The same object is written to `figma-qa/.results/run.json`:
@@ -139,7 +147,8 @@ HTML report: figma-qa/.results/report/index.html
                     "triage": "token",
                     "approved": "{ when: { Size: ['Small'], Tone: ['Brand'] }, reason: 'TODO: …' }"
                 }
-            ]
+            ],
+            "annotations": []
         }
     ],
     "errors": [],
@@ -153,6 +162,28 @@ HTML report: figma-qa/.results/report/index.html
 - **The verdict fields** are `exitCode`, `stories[].verdict` and `stories[].error`. `errors` holds failures outside any story.
 - **`stories[].results`** points at the per-story results JSON. It has every cell's spec rows (`spec.mismatches`: element, property, `expected` (Figma), `actual` (story), `delta`, `tolerance`) and its pixel diff (`image`). Read that file to see what differs.
 - **`failing[].approved`** is `null` for `harness` cells.
+- **`stories[].annotations`** lists the designer's notes of the story's blocks: `block`, `variant` (the cell's variant name, `null` for a note on the set itself), `nodeId` (instance sublayers look like `I20:2;30:2;31:1`), `path` (layer names from the set down) and `label`, plain text with its line breaks. The `Glyph.figma` run above lists:
+
+  ```json
+  "annotations": [
+      {
+          "block": "glyph",
+          "variant": null,
+          "nodeId": "20:0",
+          "path": [],
+          "label": "Icons come from the Icons library.\nNever recolour them in code."
+      },
+      {
+          "block": "glyph",
+          "variant": "Icon=Circle",
+          "nodeId": "I20:2;30:2;31:1",
+          "path": ["Icon=Circle", "Circle", "Shape"],
+          "label": "Corner radius follows the icon size."
+      }
+  ]
+  ```
+
+  The per-story results JSON holds the same notes where they sit: `blocks[].annotations` for the set (`null` when the refs predate notes) and `blocks[].cells[].annotations` for a variant. In `--json`, refs that predate notes list none; the `WARN` that notes are not synced is what tells that apart from a set with no notes.
 
 
 With `--ci` it also writes the PR comment body; see [CI / PR workflow](../ci.md#the-pr-comment).

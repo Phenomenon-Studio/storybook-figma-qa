@@ -23,6 +23,10 @@ With `storybook dev` running, open a Figma story and the **Figma diff** addon pa
 
 ![Figma diff panel on a passing story](../assets/panel-pass.png)
 
+## Designer notes
+
+Dev Mode annotations the designer pinned inside a linked set show as plain text, with their line breaks kept. A note on the set sits under the block's heading. A note on a variant's layers sits inside its cell, under the layer path, and the cell's row carries a *1 note* tag, so a closed passing cell still shows it has one. Notes never change a verdict. REST sends text only, so the category, markdown and pinned properties don't show here; the `figma-qa` skill reads them through the Figma MCP.
+
 ## Banners
 
 A run with host Chromium (no Docker, or `--host-browser`) carries this banner in both views. It is a warning: the verdicts stand, but the pixels aren't comparable to CI's.

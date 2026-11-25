@@ -28,6 +28,11 @@ export async function loadSets(
             if (set.warning) {
                 warnings.add(set.warning);
             }
+            if (!set.manifest.annotations) {
+                warnings.add(
+                    `Designer notes of ${url} are not synced: run \`figma-qa report --refresh\` to read them.`
+                );
+            }
         }
     });
     const catalog = await readJson<FigmaVariableCatalog>(path.join(root, refsDir, 'variables.json'));

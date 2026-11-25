@@ -9,7 +9,7 @@ Agents pick a skill up on their own when a task matches its description; you can
 
 ## figma-qa
 
-**When:** a component with a Figma story changed, you ask whether code matches Figma, or Figma cells fail.
+**When:** a component with a Figma story changed, you ask whether code matches Figma, Figma cells fail, or the run lists designer notes.
 
 1. **Run** `figma-report --json`, scoped to the work: the components touched, or `--changed`. Exit 2 gets fixed (story config) or handed to you (token, Docker), never mistaken for a design verdict.
 2. **Triage** every failing cell into a class, starting from the CLI's `triage`:
@@ -24,10 +24,11 @@ Agents pick a skill up on their own when a task matches its description; you can
    | harness | Nothing measurable: capture blocked, sizes differ. | The story's wrapper or play function |
    | deliberate | A difference the code means. | An approval you confirm |
 
-3. **Act**: fixes the story itself (harness, mapping); fixes the component when you asked for fixes, else reports the owner; for a deliberate difference, pastes the `approved` entry with a reason and **asks you to confirm it**.
-4. **Report**: one table per story: cell, class, Figma value, story value, owner `file:line`, action, then the approvals waiting on you.
+3. **Designer notes**: checks each Dev Mode annotation in the run's `annotations`. It reads the category with a read-only `use_figma` script when the Figma MCP is there (`unknown` otherwise), splits the note into claims, and checks each one against the code, ADRs and decision logs, the glossary, the cells and the other notes. Each note gets `applied`, `conflict`, `open` or `out of scope`. On a conflict the code and recorded decisions hold until you rule. It **asks you** about every `conflict` and `open` note before changing code.
+4. **Act**: fixes the story itself (harness, mapping); fixes the component when you asked for fixes, else reports the owner; for a deliberate difference, pastes the `approved` entry with a reason and **asks you to confirm it**.
+5. **Report**: one table per story: cell, class, Figma value, story value, owner `file:line`, action, then the approvals waiting on you. Last, a notes table: block, node, category, verdict, and the evidence or reason.
 
-**Left to you:** confirming every approval, the Figma token, `--refresh` when Figma changed.
+**Left to you:** confirming every approval, ruling on conflicting and open notes, the Figma token, `--refresh` when Figma changed.
 
 ## figma-qa-scaffold
 

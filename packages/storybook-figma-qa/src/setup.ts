@@ -209,6 +209,7 @@ type Captured = {
     spec: FigmaCellResult['spec'];
     covered: string | null;
     maxRatio: number;
+    annotations: FigmaCellResult['annotations'];
 };
 
 /** A matrix cell in order: judged already (missing), or once its pixel diff is back. */
@@ -256,6 +257,7 @@ function judgeCell(captured: Captured, diff: PixelDiffResponse): FigmaCellResult
         spec,
         image,
         files: diff.files,
+        annotations: captured.annotations,
     };
 }
 
@@ -291,8 +293,13 @@ async function checkCells(storyId: string, story: FigmaStory, resolved: Resolved
             throw new Error(`Matrix block "${name}" not rendered: render <FigmaMatrix> in the story.`);
         }
         const slots: Slot[] = [];
+        // Notes ride along with their cell or block; no verdict reads them.
+        const notes = manifest.annotations ?? [];
         for (const variant of manifest.variants) {
             const variantRef = { id: variant.id, name: variant.name, props: variant.props };
+            const annotations = notes.filter((note) => {
+                return note.variant === variant.id;
+            });
             const cell = container.querySelector<HTMLElement>(`[data-figma-variant="${CSS.escape(variant.id)}"]`);
             const root = cell?.firstElementChild;
             if (!cell || !root) {
@@ -313,6 +320,7 @@ async function checkCells(storyId: string, story: FigmaStory, resolved: Resolved
                         blob: null,
                     },
                     files: { figma: refPng(config.refsDir, slug, variant.id), actual: null, diff: null },
+                    annotations,
                 });
                 continue;
             }
@@ -339,6 +347,7 @@ async function checkCells(storyId: string, story: FigmaStory, resolved: Resolved
                 },
                 covered: view.covered,
                 maxRatio,
+                annotations,
             };
             let diff: PixelDiffResponse | null = null;
             diffs.push(
@@ -367,6 +376,10 @@ async function checkCells(storyId: string, story: FigmaStory, resolved: Resolved
                 layout: block.layout,
                 axes: manifest.axes,
                 cells: [],
+                annotations:
+                    manifest.annotations?.filter((note) => {
+                        return note.variant === null;
+                    }) ?? null,
             },
             slots,
         });

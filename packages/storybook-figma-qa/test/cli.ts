@@ -70,6 +70,7 @@ export type Summary = {
         error: string | null;
         results: string | null;
         failing: { block: string; variant: string; triage: string | null; approved: string | null }[];
+        annotations: (Omit<Annotation, 'variant'> & { block: string; variant: string | null })[];
     }[];
     errors: string[];
     warnings: string[];
@@ -77,15 +78,19 @@ export type Summary = {
     cellMs: number | null;
     panelUrl: string | null;
 };
+/** A designer note, as manifests and results hold it. */
+export type Annotation = { nodeId: string; path: string[]; variant: string | null; label: string };
 export type StoryResult = {
     error: string | null;
     warnings: string[];
     blocks: {
+        annotations: Annotation[] | null;
         cells: {
             variant: { name: string; props: Record<string, string> };
             status: string;
             approval: string | null;
             triage: string | null;
+            annotations: Annotation[];
         }[];
     }[];
 };

@@ -5,6 +5,7 @@
 import type {
     CellCounts,
     CellStatus,
+    FigmaAnnotation,
     FigmaBlockResult,
     FigmaCellResult,
     FigmaIssue,
@@ -122,6 +123,26 @@ function IssueTable({ caption, issues }: { caption: string; issues: FigmaIssue[]
     );
 }
 
+/** Designer notes, as plain text with their line breaks; each under the layer path it is pinned to. */
+function Notes({ annotations }: { annotations: readonly FigmaAnnotation[] }) {
+    return (
+        <div className="fqa-notes">
+            <p className="fqa-muted">Designer notes</p>
+            <ul>
+                {annotations.map((note, index) => {
+                    return (
+                        // A node may carry several notes, so the index keeps keys unique.
+                        <li key={`${note.nodeId}·${index}`}>
+                            <code className="fqa-muted">{note.path.length > 0 ? note.path.join(' › ') : 'Set'}</code>
+                            <p className="fqa-note">{note.label}</p>
+                        </li>
+                    );
+                })}
+            </ul>
+        </div>
+    );
+}
+
 function Picture({ caption, file, fileUrl }: { caption: string; file: string; fileUrl: FileUrl }) {
     return (
         <figure>
@@ -146,6 +167,11 @@ function Cell({ cell, fileUrl }: { cell: FigmaCellResult; fileUrl: FileUrl }) {
                     </span>
                     <span className="fqa-cell__name">{cell.variant.name}</span>
                     {cell.triage && <span className="fqa-tag">{TRIAGE_LABEL[cell.triage]}</span>}
+                    {cell.annotations.length > 0 && (
+                        <span className="fqa-tag">
+                            {cell.annotations.length === 1 ? '1 note' : `${cell.annotations.length} notes`}
+                        </span>
+                    )}
                     {image.ratio !== null && (
                         <span className="fqa-muted">
                             {percent(image.ratio)} pixels differ (allowed {percent(image.maxRatio)})
@@ -156,6 +182,7 @@ function Cell({ cell, fileUrl }: { cell: FigmaCellResult; fileUrl: FileUrl }) {
                     {cell.status === 'missing' && (
                         <p className="fqa-muted">Figma draws this variant; the code has no equivalent.</p>
                     )}
+                    {cell.annotations.length > 0 && <Notes annotations={cell.annotations} />}
                     {cell.approval && (
                         <p>
                             <strong>Approved deviation:</strong> {cell.approval}
@@ -207,6 +234,7 @@ function Block({ block, fileUrl }: { block: FigmaBlockResult; fileUrl: FileUrl }
                     Open in Figma
                 </a>
             </div>
+            {block.annotations && block.annotations.length > 0 && <Notes annotations={block.annotations} />}
             <ul className="fqa-cells">
                 {block.cells.map((cell) => {
                     return <Cell key={cell.variant.id} cell={cell} fileUrl={fileUrl} />;

@@ -121,5 +121,23 @@
                 ]
             }
         }
+    ],
+    "annotations": [
+        {
+            "nodeId": "20:0",
+            "path": [],
+            "variant": null,
+            "label": "Icons come from the Icons library.\nNever recolour them in code."
+        },
+        {
+            "nodeId": "I20:2;30:2;31:1",
+            "path": [
+                "Icon=Circle",
+                "Circle",
+                "Shape"
+            ],
+            "variant": "20:2",
+            "label": "Corner radius follows the icon size."
+        }
     ]
 }

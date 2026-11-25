@@ -159,8 +159,9 @@ async function syncFile(paths: SyncPaths, fileKey: string, urls: string[], meta:
         const raw = await readJson<RawSet>(local.rawFile);
         if (raw?.version === version) {
             raws.set(local.url, raw);
-        } else if (local.complete && local.manifest?.source.version === version) {
-            // `--refresh` at the synced version, without raw JSON to rebuild from: nothing to adopt.
+        } else if (local.complete && local.manifest?.source.version === version && local.manifest.annotations) {
+            // `--refresh` at the synced version, without raw JSON to rebuild from: nothing to adopt. A manifest from
+            // before notes were synced still lacks them, so it fetches.
             serve(local, null);
         } else {
             toFetch.push(local);

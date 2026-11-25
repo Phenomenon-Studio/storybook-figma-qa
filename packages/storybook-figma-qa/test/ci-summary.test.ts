@@ -14,6 +14,7 @@ function story(fields: Partial<FigmaStorySummary>): FigmaStorySummary {
         error: null,
         results: null,
         failing: [],
+        annotations: [],
         ...fields,
     };
 }

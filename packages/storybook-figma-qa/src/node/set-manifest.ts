@@ -1,6 +1,6 @@
 // Spec extraction: a component set's raw `/nodes` entry → its manifest (variant axes + a layout/type spec per
 // variant). Ported unchanged from the in-tree pipeline; pure, so `--refresh` rebuilds manifests from cached raw JSON.
-import type { FigmaSetManifest, FigmaShadow, FigmaSpec, FigmaStroke, FigmaVariant, Box, Rgba } from '../figma/types.ts';
+import type { FigmaAnnotation, FigmaSetManifest, FigmaShadow, FigmaSpec, FigmaStroke, FigmaVariant, Box, Rgba } from '../figma/types.ts';
 import { createHash } from 'node:crypto';
 import { parseFigmaUrl } from '../figma/types.ts';
 
@@ -55,6 +55,8 @@ export type FigmaNode = {
     counterAxisAlignItems?: string;
     componentPropertyDefinitions?: Record<string, { type: string; defaultValue: unknown; variantOptions?: string[] }>;
     componentId?: string;
+    /** Dev Mode annotations: REST sends `label` (plain text) only. */
+    annotations?: { label?: string }[];
     children?: FigmaNode[];
 };
 
@@ -419,9 +421,36 @@ function propertyName(key: string): string {
     return key.replace(/#[\d:]+$/, '');
 }
 
-/** Hash of a set's whole `/nodes` entry: equal hashes mean Figma would render the same images. */
+/**
+ * Hash of a set's whole `/nodes` entry but its annotations: equal hashes mean Figma would render the same images, and
+ * notes are not drawn. Entries without notes hash as before notes were left out, so committed hashes stay valid.
+ */
 export function subtreeHash(entry: NodesEntry): string {
-    return createHash('sha256').update(JSON.stringify(entry)).digest('hex').slice(0, 16);
+    const drawn = JSON.stringify(entry, (key, value: unknown) => {
+        return key === 'annotations' ? undefined : value;
+    });
+
+    return createHash('sha256').update(drawn).digest('hex').slice(0, 16);
+}
+
+/** Every labelled annotation in the set's subtree, in layer order, with where it sits. */
+function annotationsOf(set: FigmaNode): FigmaAnnotation[] {
+    const found: FigmaAnnotation[] = [];
+    const visit = (node: FigmaNode, path: string[], variant: string | null) => {
+        for (const annotation of node.annotations ?? []) {
+            // A note of pinned properties only has no text over REST: nothing to show.
+            if (annotation.label) {
+                found.push({ nodeId: node.id, path, variant, label: annotation.label });
+            }
+        }
+        for (const child of node.children ?? []) {
+            const inVariant = variant ?? (node === set && child.type === 'COMPONENT' ? child.id : null);
+            visit(child, [...path, child.name], inVariant);
+        }
+    };
+    visit(set, [], null);
+
+    return found;
 }
 
 /** A component set's VARIANT properties in Figma's order, each with its options in Figma's order. */
@@ -476,5 +505,6 @@ export function setManifest(url: string, entry: NodesEntry, version: string, las
                 return { name: propertyName(key), default: definition.defaultValue === true };
             }),
         variants,
+        annotations: annotationsOf(set),
     };
 }

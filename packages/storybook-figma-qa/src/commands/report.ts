@@ -10,6 +10,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { BROWSER_WS_ENV, REFRESH_ENV, STORIES_KEY } from '../constants.ts';
 import { CI_SUMMARY_FILE, REPORT_DIR, RESULTS_DIR, resultsFile, RUN_FILE } from '../figma/types.ts';
+import { storyAnnotations } from '../figma/annotations.ts';
 import { cellDiff } from '../figma/cell-diff.ts';
 import { failingCells } from '../figma/triage.ts';
 import { countCells, noCells, runExitCode, storyVerdict } from '../figma/verdict.ts';
@@ -193,6 +194,7 @@ async function summarize(
                 error,
                 results: result && storyId ? resultsFile(storyId) : null,
                 failing: failingCells(result?.blocks ?? []),
+                annotations: storyAnnotations(result?.blocks ?? []),
             });
         }
     }
@@ -280,6 +282,14 @@ function printHuman(summary: FigmaRunSummary, results: readonly FigmaStoryResult
         const counts = `${pass} pass, ${fail} fail, ${approved} approved, ${missing} missing`;
         const detail = story.error ? `error: ${story.error}` : counts;
         print(`${story.verdict.toUpperCase().padEnd(5)} ${story.title} › ${story.name}: ${detail}`);
+        // A count, not the text: the notes are in the panel, the HTML report and `--json`.
+        const notes = new Map<string, number>();
+        for (const note of story.annotations) {
+            notes.set(note.block, (notes.get(note.block) ?? 0) + 1);
+        }
+        for (const [block, count] of notes) {
+            print(`      ${block} · notes: ${count}`);
+        }
         for (const cell of story.failing) {
             const triage = cell.triage ? ` [${cell.triage}]` : '';
             print(`      ✗ ${cell.block} · ${cell.variant}${triage}`);

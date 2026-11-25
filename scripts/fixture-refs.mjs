@@ -28,6 +28,11 @@ const TONE_VARIABLES = {
 /** Glyph variants: a 24×24 frame with one 16×16 icon instance inset 4px, drawn in Brand. */
 const GLYPHS = { Square: 0, Circle: 8 };
 const GLYPH = { frame: 24, side: 16, inset: 4 };
+/** Dev Mode annotations as REST sends them (plain `label`): one on the Glyph set, one on Circle's icon sublayer. */
+const GLYPH_NOTES = {
+    set: 'Icons come from the Icons library.\nNever recolour them in code.',
+    shape: 'Corner radius follows the icon size.',
+};
 
 function chunk(type, data) {
     const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
@@ -187,6 +192,7 @@ const glyphs = Object.entries(GLYPHS).map(([iconName, radius], column) => {
                         absoluteBoundingBox: icon,
                         fills: [{ blendMode: 'NORMAL', type: 'SOLID', color: figmaColor(TONES.Brand) }],
                         cornerRadius: radius,
+                        ...(iconName === 'Circle' && { annotations: [{ label: GLYPH_NOTES.shape }] }),
                     },
                 ],
             },
@@ -200,7 +206,10 @@ const sets = [
     {
         id: '20:0',
         variants: glyphs,
-        document: componentSet('20:0', 'Glyph', { Icon: Object.keys(GLYPHS) }, glyphs),
+        document: {
+            ...componentSet('20:0', 'Glyph', { Icon: Object.keys(GLYPHS) }, glyphs),
+            annotations: [{ label: GLYPH_NOTES.set }],
+        },
         components: Object.fromEntries(
             Object.keys(GLYPHS).map((iconName, column) => {
                 return [`30:${column + 1}`, { key: `glyph-${column + 1}`, name: `Icons/${iconName}` }];

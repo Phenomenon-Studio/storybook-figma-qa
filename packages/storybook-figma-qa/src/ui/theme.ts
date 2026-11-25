@@ -70,6 +70,11 @@ export const FIGMA_QA_CSS = `
 .fqa-issues th, .fqa-issues td { padding: 5px 8px; border-top: 1px solid var(--line); text-align: left; vertical-align: top; }
 .fqa-issues th { color: var(--muted); font-weight: 500; }
 .fqa-issues td { font-family: var(--mono); overflow-wrap: anywhere; }
+.fqa-notes { display: flex; flex-direction: column; gap: 6px; padding: 8px 12px; border-left: 2px solid var(--line-2); }
+.fqa-notes ul { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.fqa-notes li { display: flex; flex-direction: column; gap: 2px; }
+/* REST sends notes as plain text: its line breaks are the only structure left. */
+.fqa-note { white-space: pre-line; overflow-wrap: anywhere; }
 
 .fqa-page { max-width: 1100px; margin: 0 auto; padding: 32px 20px 64px; display: flex; flex-direction: column; gap: 28px; }
 .fqa-page > header { display: flex; flex-direction: column; gap: 10px; }

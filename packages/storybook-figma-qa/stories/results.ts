@@ -2,6 +2,7 @@
 // (fixtures/sb11, Swatch), served from `stories/images`.
 import type { FigmaCellResult, FigmaRunSummary, FigmaStorySummary, FigmaStoryResult } from '../src/figma/types.ts';
 import { resultsFile } from '../src/figma/types.ts';
+import { storyAnnotations } from '../src/figma/annotations.ts';
 import { failingCells } from '../src/figma/triage.ts';
 import { countCells, runExitCode, storyVerdict } from '../src/figma/verdict.ts';
 
@@ -33,6 +34,7 @@ function cell(status: FigmaCellResult['status'], tone: string, extra: Partial<Fi
             blob: null,
         },
         files: { figma: `images/${slug}-figma.png`, actual: `images/${slug}-story.png`, diff: null },
+        annotations: [],
         ...extra,
     };
 }
@@ -79,6 +81,7 @@ function story(storyId: string, name: string, cells: FigmaCellResult[], extra: P
                 layout: { sections: null, columns: 'Tone' },
                 axes: [{ name: 'Tone', options: ['Brand', 'Neutral', 'Danger'] }],
                 cells,
+                annotations: [],
             },
         ],
         error: null,
@@ -112,6 +115,28 @@ export const FIGMA_CHANGED = story('swatch--figma-changed', 'Figma changed', [ce
     warnings: [`Figma changed since ${SET_URL} was synced (version 1 → 2): run \`figma-qa report --refresh\` to adopt it.`],
 });
 
+/** Designer notes on the set and on one cell; they never change the verdict. */
+export const NOTED = (() => {
+    const noted = story('swatch--noted', 'Noted', [
+        cell('pass', 'Brand', {
+            annotations: [
+                {
+                    nodeId: 'I10:1;30:1',
+                    path: ['Size=Small, Tone=Brand', 'Label'],
+                    variant: '10:Brand',
+                    label: 'Hover darkens the fill by one step.\nPressed: two steps.',
+                },
+            ],
+        }),
+        cell('pass', 'Neutral'),
+    ]);
+    noted.blocks[0]!.annotations = [
+        { nodeId: '10:0', path: [], variant: null, label: 'Tones come from the Tone collection only.' },
+    ];
+
+    return noted;
+})();
+
 /** One failing cell per triage category, and one that code can't categorise. */
 export const TRIAGED = story('swatch--triaged', 'Triaged', [
     cell('fail', 'Brand', {
@@ -144,6 +169,7 @@ export const RENDER_FAILED: FigmaStorySummary = {
     error: 'Story failed before the Figma checks: Cannot read properties of undefined (reading "tone")',
     results: null,
     failing: [],
+    annotations: [],
 };
 
 /** A run over `results` (plus stories that wrote none), summarized as the CLI does (verdict.ts). */
@@ -165,6 +191,7 @@ export function runOf(
             error: result.error,
             results: resultsFile(result.storyId),
             failing: failingCells(result.blocks),
+            annotations: storyAnnotations(result.blocks),
         };
     });
     const stories = [...written, ...unwritten];
