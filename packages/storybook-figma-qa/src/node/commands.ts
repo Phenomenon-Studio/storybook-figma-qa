@@ -7,7 +7,8 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { refPng, RESULTS_DIR, resultsFile, variantSlug } from '../figma/types.ts';
 import { loadProjectConfig } from './config.ts';
-import { pixelDiff } from './pixel-diff.ts';
+import { flatRef } from './flat-refs.ts';
+import { parseBackdrop, pixelDiff } from './pixel-diff.ts';
 import { loadSets } from './sets.ts';
 import { FigmaSync } from './sync.ts';
 
@@ -69,7 +70,9 @@ export const figmaPixelDiff: BrowserCommand<[request: PixelDiffRequest]> = async
     const cell = `${RESULTS_DIR}/${path.basename(request.storyId)}-${variant}`;
     const actual = `${cell}-actual.png`;
     const screenshot = Buffer.from(request.screenshot, 'base64');
-    const result = pixelDiff(await readFile(path.join(root, figma)), screenshot, request.backdrop, request.masks);
+    const ground = parseBackdrop(request.backdrop);
+    const flat = await flatRef(root, await readFile(path.join(root, figma)), ground);
+    const result = pixelDiff(flat, screenshot, ground, request.masks);
     await mkdir(path.join(root, RESULTS_DIR), { recursive: true });
     await writeFile(path.join(root, actual), screenshot);
     const diff = result.diff ? `${cell}-diff.png` : null;

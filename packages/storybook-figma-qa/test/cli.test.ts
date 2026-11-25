@@ -1,6 +1,6 @@
 // Seam 1: the real `figma-qa` binary, run the way a consumer runs it, inside each fixture project.
 import type { StoryResult } from './cli.ts';
-import { readFile, rm } from 'node:fs/promises';
+import { readdir, readFile, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { doctor, fixtureDir, FIXTURES, report, runCli, storyResult } from './cli.ts';
@@ -66,6 +66,38 @@ describe.each(FIXTURES)('figma-qa report in fixtures/%s', (fixture) => {
 
         expect(code, stderr).toBe(0);
         expect(summary.exitCode).toBe(0);
+    });
+
+    // Ticket 09: each ref is flattened once per (ref hash, backdrop) and kept under the local cache, so an unchanged
+    // ref skips the flatten on the next run. Per-cell check time is reported, never asserted against a budget.
+    it('reports per-cell check time and reuses flattened refs across runs', async () => {
+        const cache = path.join(fixtureDir(fixture), 'node_modules/.cache/figma-qa/flat-v1');
+        await rm(cache, { recursive: true, force: true });
+
+        const first = await report(fixture, ['Swatch.figma']);
+
+        expect(first.code, first.stderr).toBe(0);
+        expect(first.summary.cellMs).toBeGreaterThan(0);
+        const files = await readdir(cache);
+        // One per captured cell: 2 pass + 2 approved, all on the same backdrop.
+        expect(files).toHaveLength(4);
+        const written = await Promise.all(
+            files.map(async (file) => {
+                return (await stat(path.join(cache, file))).mtimeMs;
+            })
+        );
+
+        const second = await report(fixture, ['Swatch.figma']);
+
+        expect(second.code, second.stderr).toBe(0);
+        expect(second.summary.cells).toEqual(first.summary.cells);
+        expect(await readdir(cache)).toEqual(files);
+        const reread = await Promise.all(
+            files.map(async (file) => {
+                return (await stat(path.join(cache, file))).mtimeMs;
+            })
+        );
+        expect(reread).toEqual(written);
     });
 
     it('exits 1 when a cell differs from Figma', async () => {

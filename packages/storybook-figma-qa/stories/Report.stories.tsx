@@ -61,7 +61,7 @@ export const HostBrowser: Story = {
     },
 };
 
-/** Phase timings, in run order, as the CLI measured them. */
+/** Phase timings, in run order, as the CLI measured them, then the checks' time per captured cell. */
 export const Timings: Story = {
     args: { run: runOf([PASS]), results: [PASS] },
     play: async ({ canvasElement }) => {
@@ -70,7 +70,7 @@ export const Timings: Story = {
             [...timings.querySelectorAll('li')].map((item) => {
                 return item.textContent;
             })
-        ).toEqual(['doctor 0.0 s', 'collect 0.9 s', 'browser 1.2 s', 'tests 14.3 s']);
+        ).toEqual(['doctor 0.0 s', 'collect 0.9 s', 'browser 1.2 s', 'tests 14.3 s', 'per cell 95 ms']);
     },
 };
 

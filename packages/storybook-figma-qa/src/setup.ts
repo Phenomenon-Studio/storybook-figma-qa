@@ -1,6 +1,6 @@
 // Vitest setup for the Figma project (browser side). After each Figma story renders, every `[data-figma-variant]`
 // cell is held to its Figma variant: 1) spec: layout/type/colour within tolerance, 2) pixels: one screenshot sent to
-// Node (`figmaPixelDiff`) and compared there within `maxDiffRatio`. `[data-figma-missing]` cells (no code equivalent)
+// Node (`figmaPixelDiff`, pipelined) and compared there within `maxDiffRatio`. `[data-figma-missing]` cells (no code equivalent)
 // are recorded, not failed. Soft assertions, so one run reports every cell; the outcome is written per story.
 // Registers no project annotations: `setProjectAnnotations` throws on Storybook 11.
 import type { PixelDiffRequest, PixelDiffResponse } from './node/commands.ts';
@@ -199,7 +199,70 @@ function blobAt(cell: HTMLElement, root: Element, blob: PixelDiffResponse['blob'
 
 type FigmaStory = { tags: string[]; parameters: StoryParameters };
 
-/** Measures every cell of the story's matrix blocks. */
+/** A captured cell waiting on its pixel diff: everything judging needs except the diff itself. */
+type Captured = {
+    variantRef: FigmaCellResult['variant'];
+    variant: ResolvedStory['blocks'][number]['manifest']['variants'][number];
+    approved: FigmaApproval[] | undefined;
+    cell: HTMLElement;
+    root: Element;
+    spec: FigmaCellResult['spec'];
+    covered: string | null;
+    maxRatio: number;
+};
+
+/** A matrix cell in order: judged already (missing), or once its pixel diff is back. */
+type Slot = FigmaCellResult | (() => FigmaCellResult);
+
+/** A cell's verdict once Node has diffed its screenshot. */
+function judgeCell(captured: Captured, diff: PixelDiffResponse): FigmaCellResult {
+    const { variant, cell, root, spec, covered, maxRatio } = captured;
+    // A covered cell would compare the cover, not the component: report it instead of a pixel share.
+    const error = covered ? `Capture blocked: ${covered} covers the cell. Harness issue, not a design diff.` : diff.error;
+    const pixels = covered ? null : diff.pixels;
+    let blob: FigmaCellResult['image']['blob'] = null;
+    if (!covered && diff.blob) {
+        // Later cells scrolled it away while this diff ran: bring it back to name the element under the blob.
+        cell.scrollIntoView({ block: 'center', inline: 'center' });
+        blob = blobAt(cell, root, diff.blob);
+    }
+    const area = variant.spec.root.width * variant.spec.root.height * FIGMA_SCALE ** 2;
+    // Share of what pixels judge: the area outside text masks, so masked text can't dilute a real difference.
+    const ratio = pixels === null ? null : pixels / Math.max(1, area - diff.masked);
+    const matches = spec.mismatches.length === 0 && ratio !== null && ratio <= maxRatio;
+    // An approval records a design deviation: it can't cover a cell that couldn't be measured.
+    const approval = matches || error ? null : approvalFor(captured.approved, variant.props);
+    let status: FigmaCellResult['status'] = 'fail';
+    if (matches) {
+        status = 'pass';
+    } else if (approval) {
+        status = 'approved';
+    }
+    const image = {
+        mismatchedPixels: pixels,
+        ratio,
+        maxRatio,
+        error,
+        classes: covered ? null : diff.classes,
+        pair: covered ? null : diff.pair,
+        blob,
+    };
+
+    return {
+        variant: captured.variantRef,
+        status,
+        approval,
+        triage: triageCell({ status, spec, image }),
+        spec,
+        image,
+        files: diff.files,
+    };
+}
+
+/**
+ * Measures every cell of the story's matrix blocks. Pipelined: each cell's screenshot goes to Node unawaited and the
+ * next cell is captured meanwhile; cells are judged once every diff is back.
+ */
 async function checkCells(storyId: string, story: FigmaStory, resolved: ResolvedStory): Promise<FigmaBlockResult[]> {
     const matrix = story.parameters.figmaMatrix;
     const config = projectConfig();
@@ -217,20 +280,24 @@ async function checkCells(storyId: string, story: FigmaStory, resolved: Resolved
     const backdrop = getComputedStyle(document.documentElement).backgroundColor;
     setVariables(resolved.variables);
 
-    const blocks: FigmaBlockResult[] = [];
+    const diffs: Promise<void>[] = [];
+    // Held, not thrown, until every diff is back: a rejection nobody awaits yet would surface as an unhandled error.
+    const failures: unknown[] = [];
+    const unjudged: { block: FigmaBlockResult; slots: Slot[] }[] = [];
+    try {
     for (const { name, url, slug, block, manifest } of resolved.blocks) {
         const container = document.querySelector(`[data-figma-block="${CSS.escape(name)}"]`);
         if (!container) {
             throw new Error(`Matrix block "${name}" not rendered: render <FigmaMatrix> in the story.`);
         }
-        const cells: FigmaCellResult[] = [];
+        const slots: Slot[] = [];
         for (const variant of manifest.variants) {
             const variantRef = { id: variant.id, name: variant.name, props: variant.props };
             const cell = container.querySelector<HTMLElement>(`[data-figma-variant="${CSS.escape(variant.id)}"]`);
             const root = cell?.firstElementChild;
             if (!cell || !root) {
                 // `[data-figma-missing]`, or left out by the layout: Figma draws it, the code doesn't.
-                cells.push({
+                slots.push({
                     variant: variantRef,
                     status: 'missing',
                     approval: null,
@@ -258,66 +325,68 @@ async function checkCells(storyId: string, story: FigmaStory, resolved: Resolved
             const masks: Box[] = textMasks(root, variant.spec);
             const screenshot = await page.screenshot({ element: cell, save: false });
             view.restore();
-            const diff = await commands.figmaPixelDiff({
-                storyId,
-                slug,
-                variantId: variant.id,
-                backdrop,
-                masks,
-                screenshot,
-            });
-            // A covered cell would compare the cover, not the component: report it instead of a pixel share.
-            const error = view.covered
-                ? `Capture blocked: ${view.covered} covers the cell. Harness issue, not a design diff.`
-                : diff.error;
-            const pixels = view.covered ? null : diff.pixels;
-            const blob = view.covered ? null : blobAt(cell, root, diff.blob);
-            const area = variant.spec.root.width * variant.spec.root.height * FIGMA_SCALE ** 2;
-            // Share of what pixels judge: the area outside text masks, so masked text can't dilute a real difference.
-            const ratio = pixels === null ? null : pixels / Math.max(1, area - diff.masked);
-            const mismatches = all.filter((issue) => {
-                return !isIgnored(issue);
-            });
-            const matches = mismatches.length === 0 && ratio !== null && ratio <= maxRatio;
-            // An approval records a design deviation: it can't cover a cell that couldn't be measured.
-            const approval = matches || error ? null : approvalFor(block.approved, variant.props);
-            let status: FigmaCellResult['status'] = 'fail';
-            if (matches) {
-                status = 'pass';
-            } else if (approval) {
-                status = 'approved';
-            }
-            const spec = { mismatches, ignored: all.filter(isIgnored) };
-            const image = {
-                mismatchedPixels: pixels,
-                ratio,
+            const captured: Captured = {
+                variantRef,
+                variant,
+                approved: block.approved,
+                cell,
+                root,
+                spec: {
+                    mismatches: all.filter((issue) => {
+                        return !isIgnored(issue);
+                    }),
+                    ignored: all.filter(isIgnored),
+                },
+                covered: view.covered,
                 maxRatio,
-                error,
-                classes: view.covered ? null : diff.classes,
-                pair: view.covered ? null : diff.pair,
-                blob,
             };
-            cells.push({
-                variant: variantRef,
-                status,
-                approval,
-                triage: triageCell({ status, spec, image }),
-                spec,
-                image,
-                files: diff.files,
+            let diff: PixelDiffResponse | null = null;
+            diffs.push(
+                commands.figmaPixelDiff({ storyId, slug, variantId: variant.id, backdrop, masks, screenshot }).then(
+                    (response) => {
+                        diff = response;
+                    },
+                    (error: unknown) => {
+                        failures.push(error);
+                    }
+                )
+            );
+            slots.push(() => {
+                if (!diff) {
+                    throw new Error(`No pixel diff for ${variant.name}.`);
+                }
+
+                return judgeCell(captured, diff);
             });
         }
         // A block with every cell missing (a scaffold's stubbed renderCell) is not an error: the report lists each
         // variant as missing, which is the visible "not written yet".
-        blocks.push({
-            set: { name, set: manifest.source.name, url, version: manifest.source.version },
-            layout: block.layout,
-            axes: manifest.axes,
-            cells,
+        unjudged.push({
+            block: {
+                set: { name, set: manifest.source.name, url, version: manifest.source.version },
+                layout: block.layout,
+                axes: manifest.axes,
+                cells: [],
+            },
+            slots,
         });
     }
+    } finally {
+        // Even when a block throws mid-loop: no diff may still be writing files once the story's result is saved.
+        await Promise.allSettled(diffs);
+    }
+    if (failures.length > 0) {
+        throw failures[0];
+    }
 
-    return blocks;
+    return unjudged.map(({ block, slots }) => {
+        return {
+            ...block,
+            cells: slots.map((slot) => {
+                return typeof slot === 'function' ? slot() : slot;
+            }),
+        };
+    });
 }
 
 afterEach(async (context) => {
@@ -328,6 +397,7 @@ afterEach(async (context) => {
     if (!story?.tags.includes(FIGMA_TAG) || !storyId) {
         return;
     }
+    const start = performance.now();
     const result: FigmaStoryResult = {
         storyId,
         // Composed stories carry no title; addon-vitest records the component name instead.
@@ -337,6 +407,7 @@ afterEach(async (context) => {
         error: null,
         warnings: [],
         ranAt: new Date().toISOString(),
+        checksMs: 0,
     };
     const failed = context.task.result?.state === 'fail';
     try {
@@ -350,6 +421,7 @@ afterEach(async (context) => {
     } catch (error) {
         result.error = error instanceof Error ? error.message : String(error);
     }
+    result.checksMs = Math.round(performance.now() - start);
     await commands.figmaSaveStoryResult(result);
     if (failed) {
         return;

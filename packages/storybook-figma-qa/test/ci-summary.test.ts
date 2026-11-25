@@ -28,6 +28,7 @@ function run(fields: Partial<FigmaRunSummary>): FigmaRunSummary {
         errors: [],
         warnings: [],
         timings: {},
+        cellMs: null,
         panelUrl: null,
         ...fields,
     };

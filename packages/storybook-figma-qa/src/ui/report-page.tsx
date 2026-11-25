@@ -16,7 +16,7 @@ const OUTCOME: Record<FigmaRunSummary['exitCode'], string> = {
 };
 
 /** Where the run's time went, phase by phase. The report phase is still running while this renders. */
-function Timings({ timings }: { timings: FigmaRunSummary['timings'] }) {
+function Timings({ timings, cellMs }: Pick<FigmaRunSummary, 'timings' | 'cellMs'>) {
     const phases = RUN_PHASES.filter((phase) => {
         return timings[phase] !== undefined;
     });
@@ -33,6 +33,11 @@ function Timings({ timings }: { timings: FigmaRunSummary['timings'] }) {
                     </li>
                 );
             })}
+            {cellMs === null ? null : (
+                <li data-phase="cell">
+                    per cell <b>{cellMs} ms</b>
+                </li>
+            )}
         </ul>
     );
 }
@@ -46,7 +51,7 @@ export function ReportBody({ run, results, fileUrl }: ReportPageProps) {
                 <h1>Figma report</h1>
                 <p>{OUTCOME[run.exitCode]}</p>
                 <Counts cells={run.cells} />
-                <Timings timings={run.timings} />
+                <Timings timings={run.timings} cellMs={run.cellMs} />
                 <RunNotices hostBrowser={run.hostBrowser} errors={run.errors} />
             </header>
             {run.stories.map((story) => {

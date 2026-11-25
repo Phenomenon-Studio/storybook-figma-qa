@@ -284,6 +284,8 @@ export type FigmaStoryResult = {
     /** Never fail the run: Figma changed since the refs were synced, Figma unreachable while refs are cached. */
     warnings: string[];
     ranAt: string;
+    /** Wall time of the story's checks (the afterEach), ms: with its captured cells, the run's per-cell cost. */
+    checksMs: number;
 };
 
 /** How a matrix groups Figma's axes: one block per `sections` option, `columns` across, the rest down. */
@@ -363,6 +365,8 @@ export type FigmaRunSummary = {
     warnings: string[];
     /** Milliseconds per phase, for the phases the run reached. `report` is missing from the HTML report it times. */
     timings: Partial<Record<RunPhase, number>>;
+    /** Checks time per captured cell (not missing), ms, over every story; null when no cell was captured. */
+    cellMs: number | null;
     /** The "Figma diff" panel of a running `storybook dev` for this project, at the first story worth a look. */
     panelUrl: string | null;
 };

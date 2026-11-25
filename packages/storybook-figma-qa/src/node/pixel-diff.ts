@@ -2,13 +2,13 @@
 // boxes are masked identically on both images, so pixels judge fills, strokes, shadows and glyphs while text is
 // judged by spec. Masks are painted on whole device pixels: both sides get exactly the same mask.
 import type { Box, DiffClasses } from '../figma/types.ts';
-import type { DiffMap } from './diff-map.ts';
+import type { DiffMap, Pixels } from './diff-map.ts';
+import type { Rgb } from './flat-refs.ts';
 import pixelmatch from 'pixelmatch';
 import { PNG } from 'pngjs';
 import { FIGMA_SCALE } from '../figma/types.ts';
 import { diffMap } from './diff-map.ts';
-
-type Rgb = { r: number; g: number; b: number };
+import { flatten } from './flat-refs.ts';
 
 const MASK: Rgb = { r: 255, g: 0, b: 255 };
 /** The iframe paints white under a transparent page; a screenshot can't keep alpha. */
@@ -29,20 +29,8 @@ export function parseBackdrop(css: string): Rgb {
     return { r: mix(r, CANVAS.r), g: mix(g, CANVAS.g), b: mix(b, CANVAS.b) };
 }
 
-/** Source-over of a straight-alpha RGBA image onto an opaque colour, in place. */
-function flatten(image: PNG, backdrop: Rgb): void {
-    const { data } = image;
-    for (let index = 0; index < data.length; index += 4) {
-        const alpha = (data[index + 3] ?? 0) / 255;
-        data[index] = Math.round((data[index] ?? 0) * alpha + backdrop.r * (1 - alpha));
-        data[index + 1] = Math.round((data[index + 1] ?? 0) * alpha + backdrop.g * (1 - alpha));
-        data[index + 2] = Math.round((data[index + 2] ?? 0) * alpha + backdrop.b * (1 - alpha));
-        data[index + 3] = 255;
-    }
-}
-
 /** Paints the masks (CSS px) at device scale on every image; returns the number of masked pixels. */
-function paintMasks(images: PNG[], masks: Box[], width: number, height: number): number {
+function paintMasks(images: Pixels[], masks: Box[], width: number, height: number): number {
     const covered = new Uint8Array(width * height);
     for (const mask of masks) {
         const x0 = Math.max(0, Math.floor(mask.x * FIGMA_SCALE));
@@ -83,9 +71,12 @@ export type PixelDiff =
       }
     | { pixels: null; masked: 0; diff: null; classes: null; pair: null; blob: null; error: string };
 
-/** Mismatched-pixel count at pixelmatch threshold 0.1 (the story's tolerance is applied by the caller). */
-export function pixelDiff(reference: Buffer, screenshot: Buffer, backdrop: string, masks: Box[]): PixelDiff {
-    const figma = PNG.sync.read(reference);
+/**
+ * Mismatched-pixel count at pixelmatch threshold 0.1 (the story's tolerance is applied by the caller). `flat`: the ref
+ * already flattened onto `ground` (flat-refs.ts); it is copied, not painted on.
+ */
+export function pixelDiff(flat: Pixels, screenshot: Buffer, ground: Rgb, masks: Box[]): PixelDiff {
+    const figma: Pixels = { width: flat.width, height: flat.height, data: new Uint8Array(flat.data) };
     const story = PNG.sync.read(screenshot);
     if (figma.width !== story.width || figma.height !== story.height) {
         return {
@@ -99,8 +90,6 @@ export function pixelDiff(reference: Buffer, screenshot: Buffer, backdrop: strin
         };
     }
     const { width, height } = figma;
-    const ground = parseBackdrop(backdrop);
-    flatten(figma, ground);
     flatten(story, CANVAS);
     const masked = paintMasks([figma, story], masks, width, height);
     const pixels = pixelmatch(figma.data, story.data, undefined, width, height, { threshold: 0.1 });

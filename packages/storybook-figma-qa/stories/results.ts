@@ -84,6 +84,7 @@ function story(storyId: string, name: string, cells: FigmaCellResult[], extra: P
         error: null,
         warnings: [],
         ranAt: RAN_AT,
+        checksMs: 420,
         ...extra,
     };
 
@@ -182,6 +183,7 @@ export function runOf(
         errors: [],
         warnings: [],
         timings: { doctor: 40, collect: 900, browser: 1200, tests: 14_250 },
+        cellMs: 95,
         panelUrl: null,
     };
 }

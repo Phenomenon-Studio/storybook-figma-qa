@@ -74,6 +74,7 @@ export type Summary = {
     errors: string[];
     warnings: string[];
     timings: Record<string, number>;
+    cellMs: number | null;
     panelUrl: string | null;
 };
 export type StoryResult = {

@@ -112,12 +112,35 @@ function summaryOf(state: RunState, fields: Partial<FigmaRunSummary>): FigmaRunS
         errors: [],
         warnings: state.warnings,
         timings: state.timings,
+        cellMs: null,
         panelUrl: null,
         ...fields,
     };
 }
 
 type Ran = { summary: FigmaRunSummary; results: FigmaStoryResult[] };
+
+/**
+ * Checks time per captured cell, over the stories that captured any: a story that errored before capturing, or whose
+ * cells are all missing, measured no cell and would only inflate the figure.
+ */
+function perCell(results: FigmaStoryResult[]): number | null {
+    let total = 0;
+    let captured = 0;
+    for (const result of results) {
+        const counts = countCells(result.blocks);
+        const cells = counts.pass + counts.fail + counts.approved;
+        if (cells > 0) {
+            total += result.checksMs;
+            captured += cells;
+        }
+    }
+    if (captured === 0) {
+        return null;
+    }
+
+    return Math.round(total / captured);
+}
 
 function failedRun(state: RunState, error: string): Ran {
     return { summary: summaryOf(state, { exitCode: 2, errors: [error] }), results: [] };
@@ -176,13 +199,15 @@ async function summarize(
     if (unnamed) {
         warnings.add(unnamed);
     }
+    const cells = countCells(
+        results.flatMap((result) => {
+            return result.blocks;
+        })
+    );
     const summary = summaryOf(state, {
         exitCode: runExitCode(stories, errors),
-        cells: countCells(
-            results.flatMap((result) => {
-                return result.blocks;
-            })
-        ),
+        cells,
+        cellMs: perCell(results),
         stories,
         errors,
         warnings: [...warnings],
@@ -261,6 +286,9 @@ function printHuman(summary: FigmaRunSummary): void {
     const timings = Object.entries(summary.timings).map(([phase, ms]) => {
         return `${phase} ${(ms / 1000).toFixed(1)} s`;
     });
+    if (summary.cellMs !== null) {
+        timings.push(`per cell ${summary.cellMs} ms`);
+    }
     console.log(`Timings: ${timings.join(', ')}`);
     console.log(`HTML report: ${REPORT_DIR}/index.html`);
     if (summary.panelUrl) {
